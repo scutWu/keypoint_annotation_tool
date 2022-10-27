@@ -52,11 +52,13 @@ class LabelTool():
         self.cb3_value = tk.IntVar()  # 是否选定初始帧，0代表未选定，1代表已选定
         self.cb3_value.set(0)
         self.first = 0  # 起始帧位置，初始为0
+        self.step = 3  # 键盘控制关键点移动的步长
 
         # 选择哪一个关键点
         self.index = tk.IntVar()
         self.index.set(21)  # 21代表没有选中
-        self.rb = [tk.Radiobutton(self.frame, text="", value=i, font=100, variable=self.index) for i in range(22)]
+        self.rb = [tk.Radiobutton(self.frame, text="", value=i, font=100, variable=self.index
+                                  ) for i in range(22)]
 
         # 标注张开和握拳
         self.gr = tk.IntVar()
@@ -165,6 +167,9 @@ class LabelTool():
         self.panel = tk.Canvas(self.frame, bg="lightgrey", height=680, width=360)
         self.panel.place(x=50, y=90, anchor="nw")
         self.panel.bind("<Button-1>", self.on_click)
+        self.frame.bind("<KeyPress>", self.on_keyboard)
+        self.frame.bind("<Button-1>", self.focus_on_frame)
+        self.frame.focus_set()
 
         self.cb_content = tk.IntVar()
         self.cb = tk.Checkbutton(self.frame, text="辅助网格线", font=200, variable=self.cb_content,
@@ -209,6 +214,9 @@ class LabelTool():
             self.input_path = json_file['input_path']
             self.video_path = json_file['video_path']
         self.label3.config(text="默认输出路径：" + self.output_path)
+
+    def focus_on_frame(self, event):
+        self.frame.focus_set()
 
     def when_destroy(self, event):
         self.cb1.config(state=tk.ACTIVE)
@@ -271,14 +279,28 @@ class LabelTool():
     def clear_rb1(self):
         self.rb1[3].select()
 
+    def on_keyboard(self, event):
+        if self.start:
+            i = self.index.get()
+            if i != 21:
+                if event.keycode == 65 or event.keycode == 37:
+                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step))
+                elif event.keycode == 87 or event.keycode == 38:
+                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) - self.step))
+                elif event.keycode == 83 or event.keycode == 40:
+                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) + self.step))
+                elif event.keycode == 68 or event.keycode == 39:
+                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) + self.step))
+
     # 响应鼠标点击
     def on_click(self, event):
-        i = self.index.get()
-        if i != 21:
-            # print(self.index.get(), event.x, event.y)
-            self.entry_content[2 * i].set(event.x)
-            self.entry_content[2 * i + 1].set(event.y)
-            self.show_coordinate()
+        if self.start:
+            i = self.index.get()
+            if i != 21:
+                # print(self.index.get(), type(event.x), event.y)
+                self.entry_content[2 * i].set(event.x)
+                self.entry_content[2 * i + 1].set(event.y)
+                # self.show_coordinate()
 
     def mytest(self):
         # ax = plt.axes(projection="3d")
@@ -341,11 +363,14 @@ class LabelTool():
         if path != '':
             cap = cv2.VideoCapture(path)
             mfps = cap.get(5)
+            print(mfps)
+            mfps = self.process_frame_rate(mfps)
+            print(mfps)
             w = int(cap.get(3))
             h = int(cap.get(4))
             path, name = os.path.split(path)
             filename, suffix = os.path.splitext(name)
-            out_path = path + '/' + filename + 'a' + suffix
+            out_path = self.video_path + '/' + filename  + suffix
             mfourcc = cv2.VideoWriter_fourcc(*'mp4v')
             dim = (w, h)
             writer = cv2.VideoWriter(out_path, mfourcc, mfps, dim)
@@ -409,7 +434,7 @@ class LabelTool():
             json.dump(json_file, file)
 
     def change_output_path(self):
-        path = tk.filedialog.askdirectory()
+        path = tk.filedialog.askdirectory(initialdir=self.output_path)
         if path != '':
             self.output_path = path
             self.label3.config(text="默认输出路径：" + self.output_path)
@@ -426,7 +451,7 @@ class LabelTool():
                 os.mkdir(self.video_path + '/2')
 
     def change_input_path(self):
-        path = tk.filedialog.askdirectory()
+        path = tk.filedialog.askdirectory(initialdir=self.input_path)
         if path != '':
             self.input_path = path
             self.write_path_file()
@@ -461,7 +486,7 @@ class LabelTool():
             # print("var = " + str(var))
             # print("i = " + str(i))
             temp_cont = self.entry_content[i].get()
-            # print("content[" + str(i) + "] = " + temp_cont)
+            # print("entry_content[" + str(i) + "] = " + temp_cont)
             if temp_cont.replace("-", "").isdigit() and temp_cont != "":
                 # print("show")
                 # print(temp_cont)
@@ -477,6 +502,7 @@ class LabelTool():
             self.show_coordinate()
         else:
             tk.messagebox.showwarning("提示", "先点击选择视频~")
+        self.frame.focus_set()
 
     # 保存每一帧的关键点坐标、过渡or张开or握紧
     def save_coordinate(self):
@@ -526,6 +552,7 @@ class LabelTool():
             self.label8.place_forget()
         else:
             self.label8.place(x=440, y=35)
+        self.frame.focus_set()
 
     # 设置entry的值
     def set_entry_content(self):
@@ -768,8 +795,8 @@ class LabelTool():
         else:
             tk.messagebox.showwarning("提示", "前面真的没有图像帧了~")
 
-    def process_frame_rate(self):
-        temp = round(self.frame_rate, 2)
+    def process_frame_rate(self, fps):
+        temp = round(fps, 2)
         temp = str(int(100 * temp))
         while len(temp) < 4:
             temp = list(temp)
@@ -804,7 +831,7 @@ class LabelTool():
         # print(type(path), path)
         self.frame_count = int(cap.get(7))  # 视频总帧数
         self.frame_rate = cap.get(5)
-        self.frame_rate = self.process_frame_rate()
+        self.frame_rate = self.process_frame_rate(self.frame_rate)
         self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
         if self.ddl < 1:
             tk.messagebox.showwarning('提示', '视频总帧数不够')
