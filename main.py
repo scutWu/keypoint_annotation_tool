@@ -58,7 +58,7 @@ class LabelTool():
         self.index = tk.IntVar()
         self.index.set(21)  # 21代表没有选中
         self.rb = [tk.Radiobutton(self.frame, text="", value=i, font=100, variable=self.index
-                                  ) for i in range(22)]
+                                  , command=self.frame.focus_set) for i in range(22)]
 
         # 标注张开和握拳
         self.gr = tk.IntVar()
@@ -331,6 +331,110 @@ class LabelTool():
                 self.entry_content[2 * i].set(event.x)
                 self.entry_content[2 * i + 1].set(event.y)
                 # self.show_coordinate()
+
+    def mytest(self):
+        # ax = plt.axes(projection="3d")
+        # z = [[], [], [], [], []]
+        # x = [[], [], [], [], []]
+        # y = [[], [], [], [], []]
+        # for i in range(50):
+        #     z[0].append(self.keypoint_data[i][0])
+        #     x[0].append(self.keypoint_data[i][1])
+        #     y[0].append(self.keypoint_data[i][2])
+        # for j in range(4):
+        #     for i in range(50):
+        #         z[j + 1].append(self.keypoint_data[i][0])
+        #         x[j + 1].append(self.keypoint_data[i][11 + j * 2] * self.oringinal_width)
+        #         y[j + 1].append(self.keypoint_data[i][12 + j * 2] * self.oringinal_hight)
+        # color = ["red", "green", "yellow", "blue", "pink"]
+        # for i in range(5):
+        #     ax.plot3D(x[i], y[i], z[i], color[i])
+        # ax.set_xlabel("X Axes")
+        # ax.set_ylabel("Y Axes")
+        # ax.set_zlabel("Z Axes")
+        # plt.show()
+
+        # 计算抓握次数
+        # d = []
+        # t = []
+        # zuida = 0
+        # zuixiao = 10000
+        # for i in range(self.frame_count):
+        #     temp = math.sqrt(math.pow(self.keypoint_data[i][1] * self.oringinal_width -
+        #                               self.keypoint_data[i][17] * self.oringinal_width, 2) +
+        #                      math.pow(self.keypoint_data[i][2] * self.oringinal_hight -
+        #                               self.keypoint_data[i][18] * self.oringinal_hight, 2))
+        #     d.append(temp)
+        #     t.append(self.keypoint_data[i][0])
+        #     if temp > zuida:
+        #         zuida = temp
+        #     if temp < zuixiao:
+        #         zuixiao = temp
+        #     print("dis[" + str(t[i]) + "] = " + str(d[i]))
+        # mean = (zuida + zuixiao) / 2
+        # flag = 0  # 0 down, 1 up
+        # count = 0
+        # for i in range(self.frame_count - 1):  # 所有帧
+        #     if not (d[i] > mean and d[i + 1] > mean):
+        #         if not (d[i] < mean and d[i + 1] < mean):
+        #             count += 1
+        # count = int(count / 2)
+        # print("count = " + str(count))
+        # plt.ylabel("distance")
+        # plt.xlabel("frame")
+        # plt.plot(t, d)
+        # d1 = [(zuida + zuixiao) / 2, (zuida + zuixiao) / 2]
+        # t1 = [1, self.frame_count]
+        # plt.plot(t1, d1, linestyle="--")
+        # plt.show()
+
+
+        path = tk.filedialog.askopenfilename()
+        if path != '':
+            cap = cv2.VideoCapture(path)
+            mfps = cap.get(5)
+            print(mfps)
+            mfps = self.process_frame_rate(mfps)
+            print(mfps)
+            w = int(cap.get(3))
+            h = int(cap.get(4))
+            path, name = os.path.split(path)
+            filename, suffix = os.path.splitext(name)
+            out_path = self.video_path + '/' + filename  + suffix
+            mfourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            dim = (w, h)
+            writer = cv2.VideoWriter(out_path, mfourcc, mfps, dim)
+            print(int(cap.get(7)))
+            i = 0
+            while cap.isOpened():
+                success, image = cap.read()
+                if not success:
+                    # print(i, mfps)
+                    print("Ignoring empty camera frame.")
+                    break
+                if i < 20:
+                    writer.write(image)
+                else:
+                    print(i, mfps)
+                    print('end')
+                    break
+                i += 1
+        pass
+
+    def info(self):
+        tk.messagebox.showinfo("帮助", "重要提示：\n"
+                                     "软件的所在目录的路径不可以存在中文字符，否则软件无法正常工作。\n"
+                                     "解决方法：把包含软件的文件夹移动至不存在中文字符的目录，点击”生成快捷方式.bat“。\n\n"
+                                     "软件使用帮助：\n"
+                                     "第一步：点击选择视频按钮，选择要处理的视频。\n"
+                                     "第二步：通过修改坐标值修改相应的关键点坐标信息。\n"
+                                     "第三步：处理完一帧后，点击下一帧图像，软件会自动保存该帧信息。\n"
+                                     "第四步：处理完所有帧，点击保存输出文件按钮，可以修改输出路径和文件名。\n\n"
+                                     "其他：\n"
+                                     "默认输出文件名为视频编号.json，默认输出路径为 C:\labeltool\output \n "
+                                     "可通过更改默认输出路径按钮修改默认输出路径，也可以在保存输出文件时指定。\n"
+                                     "一个视频处理完后，可点击选择视频开始处理下一视频。\n"
+                                     "辛苦啦~")
 
     # 错误case1：一个帧内标注一次握紧，再标注为过渡，last_gr_label会设置为2
     # 错误case2：一个帧内标注一次握紧，，再标注为过渡，再标注为握紧，last_gr_label会设置为2
@@ -703,6 +807,7 @@ class LabelTool():
                     i += 1
                 cv2.destroyAllWindows()
 
+                self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
             else:
