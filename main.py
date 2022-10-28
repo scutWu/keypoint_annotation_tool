@@ -235,7 +235,7 @@ class LabelTool():
             # print("dis[" + str(t[i]) + "] = " + str(d[i]))
         mean = (zuida + zuixiao) / 2
         count = 0
-        for i in range(self.frame_count - 1):  # 所有帧
+        for i in range(10 * self.frame_rate - 1):  # 所有帧
             if not (d[i] > mean and d[i + 1] > mean):
                 if not (d[i] < mean and d[i + 1] < mean):
                     count += 1
@@ -807,7 +807,7 @@ class LabelTool():
                     i += 1
                 cv2.destroyAllWindows()
 
-                self.calculate_gr_count()
+                # self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
             else:
