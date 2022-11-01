@@ -12,7 +12,7 @@ from PIL import Image, ImageTk
 import math
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
-# import keyboard
+# import keyboardcon
 
 
 class LabelTool():
@@ -52,7 +52,7 @@ class LabelTool():
         self.cb3_value = tk.IntVar()  # 是否选定初始帧，0代表未选定，1代表已选定
         self.cb3_value.set(0)
         self.first = 0  # 起始帧位置，初始为0
-        self.step = 3  # 键盘控制关键点移动的步长
+        self.step = 4  # 键盘控制关键点移动的步长
 
         # 选择哪一个关键点
         self.index = tk.IntVar()
@@ -235,7 +235,7 @@ class LabelTool():
             # print("dis[" + str(t[i]) + "] = " + str(d[i]))
         mean = (zuida + zuixiao) / 2
         count = 0
-        for i in range(10 * self.frame_rate - 1):  # 所有帧
+        for i in range(int(10 * self.frame_rate - 1)):  # 所有帧
             if not (d[i] > mean and d[i + 1] > mean):
                 if not (d[i] < mean and d[i + 1] < mean):
                     count += 1
@@ -310,17 +310,61 @@ class LabelTool():
         self.rb1[3].select()
 
     def on_keyboard(self, event):
-        if self.start:
+        # if self.start:
+            if event.keycode == 13:
+                self.next_image()
+                return
+            elif event.char == '0':
+                self.previous_image()
+                return
+            elif event.char == '6':
+                self.reset_coordinate()
+                return
+            elif event.char == '8':  # 伸掌起始帧
+                self.rb1[1].select()
+                self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为伸掌")
+                return
+            elif event.char == '9':  # 握拳起始帧
+                self.rb1[2].select()
+                self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为握拳")
+                return
+            elif event.char == '7':  # 过渡帧
+                self.rb1[0].select()
+                self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
+                return
             i = self.index.get()
+            # print(event.keycode, event)
             if i != 21:
-                if event.keycode == 65 or event.keycode == 37:
+                if event.char == ' ' or event.char == 'e':  # 空格或e：index加一
+                    if i < 20:
+                        self.index.set(i + 1)
+                    else:
+                        self.index.set(0)
+                elif event.char == 'q':  # 按下q,c,v，index减一
+                    if i != 0:
+                        self.index.set(i - 1)
+                    else:
+                        self.index.set(20)
+                elif event.char == '1':  # index设为0
+                    self.index.set(0)
+                elif event.char == '2':
+                    self.index.set(5)
+                elif event.char == '3':
+                    self.index.set(9)
+                elif event.char == '4':
+                    self.index.set(13)
+                elif event.char == '5':
+                    self.index.set(17)
+                elif event.char == 'a' or event.char == 'A' or event.keycode == 37:  # 向左
                     self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step))
-                elif event.keycode == 87 or event.keycode == 38:
+                elif event.char == 'w' or event.char == 'W' or event.keycode == 38:  # 向上
                     self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) - self.step))
-                elif event.keycode == 83 or event.keycode == 40:
+                elif event.char == 's' or event.char == 'S' or event.keycode == 40:  # 向下
                     self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) + self.step))
-                elif event.keycode == 68 or event.keycode == 39:
+                elif event.char == 'd' or event.char == 'D' or event.keycode == 39:  # 向右
                     self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) + self.step))
+            else:  # 在clear_radiobutton后，按任意键选中第七个radiobutton
+                self.index.set(6)
 
     # 响应鼠标点击
     def on_click(self, event):
@@ -565,7 +609,7 @@ class LabelTool():
                     temp = float(self.entry_content[i].get()) / self.image_height
                 self.keypoint_data_new[self.current][i + 1] = temp
             self.process[self.current] = True  # 当前帧已处理
-            print("saving " + str(self.current + 1))
+            # print("saving " + str(self.current + 1))
             return True
 
 
@@ -577,7 +621,8 @@ class LabelTool():
         self.set_entry_content()
         self.show_coordinate()
         self.process[self.current] = False
-        self.clear_radiobutton()
+        # self.clear_radiobutton()
+        self.rb[6].select()
         if self.exist[self.current]:
             self.label8.place_forget()
         else:
@@ -807,7 +852,7 @@ class LabelTool():
                     i += 1
                 cv2.destroyAllWindows()
 
-                # self.calculate_gr_count()
+                self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
             else:
