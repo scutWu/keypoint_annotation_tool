@@ -852,7 +852,7 @@ class LabelTool():
                     i += 1
                 cv2.destroyAllWindows()
 
-                self.calculate_gr_count()
+                # self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
             else:
