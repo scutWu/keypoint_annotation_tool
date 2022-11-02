@@ -310,7 +310,7 @@ class LabelTool():
         self.rb1[3].select()
 
     def on_keyboard(self, event):
-        # if self.start:
+        if self.start:
         #     print(event.keycode, event.keysym, type(event.keysym))
             if event.keysym == 'Return':
                 self.next_image()
