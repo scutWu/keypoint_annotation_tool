@@ -311,7 +311,8 @@ class LabelTool():
 
     def on_keyboard(self, event):
         # if self.start:
-            if event.keycode == 13:
+        #     print(event.keycode, event.keysym, type(event.keysym))
+            if event.keysym == 'Return':
                 self.next_image()
                 return
             elif event.char == '0':
@@ -320,20 +321,19 @@ class LabelTool():
             elif event.char == '6':
                 self.reset_coordinate()
                 return
-            elif event.char == '8':  # 伸掌起始帧
+            elif event.char == '3':  # 伸掌起始帧
                 self.rb1[1].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为伸掌")
                 return
-            elif event.char == '9':  # 握拳起始帧
+            elif event.char == '2':  # 握拳起始帧
                 self.rb1[2].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为握拳")
                 return
-            elif event.char == '7':  # 过渡帧
+            elif event.char == '1':  # 过渡帧
                 self.rb1[0].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
                 return
             i = self.index.get()
-            # print(event.keycode, event)
             if i != 21:
                 if event.char == ' ' or event.char == 'e':  # 空格或e：index加一
                     if i < 20:
@@ -345,16 +345,16 @@ class LabelTool():
                         self.index.set(i - 1)
                     else:
                         self.index.set(20)
-                elif event.char == '1':  # index设为0
-                    self.index.set(0)
-                elif event.char == '2':
-                    self.index.set(5)
-                elif event.char == '3':
-                    self.index.set(9)
-                elif event.char == '4':
-                    self.index.set(13)
-                elif event.char == '5':
-                    self.index.set(17)
+                # elif event.char == '1':  # index设为0
+                #     self.index.set(0)
+                # elif event.char == '2':
+                #     self.index.set(5)
+                # elif event.char == '3':
+                #     self.index.set(9)
+                # elif event.char == '4':
+                #     self.index.set(13)
+                # elif event.char == '5':
+                #     self.index.set(17)
                 elif event.char == 'a' or event.char == 'A' or event.keycode == 37:  # 向左
                     self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step))
                 elif event.char == 'w' or event.char == 'W' or event.keycode == 38:  # 向上
