@@ -750,6 +750,7 @@ class LabelTool:
         for i in range(11):
             self.cb5_value[i].set(0)
         self.bt5.config(text='保存输出文件和视频')
+        self.gr_label = []
 
     def next_image(self):
         if self.start:
@@ -789,7 +790,7 @@ class LabelTool:
                                                initialfile=self.filename, filetypes=[("json", ".json")])
         if name == '':
             tk.messagebox.showwarning("提示", "未保存成功，请点击保存输出文件按钮")
-            return
+            return False
         num = int(10 * self.frame_rate)
         begin = self.first
         mlabel = self.keypoint_data_new[(self.first - 1):(self.first + int(10 * self.frame_rate) - 1)]
@@ -822,6 +823,7 @@ class LabelTool:
         with open(name + ".json", "w") as file:
             json.dump(json_file, file)
         print("write json file success!")
+        return True
 
     def generate_video(self):
         # 生成裁剪后的视频 1
@@ -872,7 +874,8 @@ class LabelTool:
                 # 标注状态
                 if self.work_state_ == 0:
                     # 写入json文件
-                    self.write_json()
+                    if not self.write_json():
+                        return
                     # 生成十秒视频
                     self.generate_video()
 
@@ -882,7 +885,8 @@ class LabelTool:
                         data = json.load(file)
                     need_new_json = tk.messagebox.askquestion('', '是否生成新的json文件？如果目录下有同名文件，可能会覆盖原始文件')
                     if need_new_json == 'yes':
-                        self.write_json()
+                        if not self.write_json():
+                            return
                     # 如果更改了十秒视频起始帧，则生成新的视频
                     if self.is_raw_video == 'yes':
                         if self.first != data['original_index']:
@@ -1174,22 +1178,22 @@ class LabelTool:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
+        path, name = os.path.split(self.videoPath.get())
+        self.filename, suffix = os.path.splitext(name)
+        self.label2.config(text="视频编号：" + self.filename)
+        self.cb3.config(text="十秒视频起始帧：" + "请在第 " + str(self.ddl) + ' 帧及之前标注')
+
         # 计算detect的值
         if len(self.fail_frame) == self.frame_count:
             self.detect = 'none'
         elif len(self.fail_frame) > 0:
             self.detect = 'partial'
-        print('detect: ', self.detect, ', fail frame: ', self.fail_frame)
+        print(self.filename, 'detect: ' + self.detect, ', fail frame:', self.fail_frame)
         hands_mode.close()
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
         self.load_image()
-
-        path, name = os.path.split(self.videoPath.get())
-        self.filename, suffix = os.path.splitext(name)
-        self.label2.config(text="视频编号：" + self.filename)
-        self.cb3.config(text="十秒视频起始帧：" + "请在第 " + str(self.ddl) + ' 帧及之前标注')
 
         # entry绑定回调函数
         for i in range(42):
