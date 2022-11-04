@@ -60,13 +60,13 @@ class LabelTool:
         self.gr.set(3)  # 0代表过渡帧(默认)，1代表张开，2代表握紧，3代表没有选中
         rb1_text = ["过渡帧", "伸掌起始帧", "握拳起始帧", ""]
         self.rb1 = [tk.Radiobutton(self.frame, text=rb1_text[i], value=i, variable=self.gr, font=1,
-                                   indicatoron=True, command=self.show_tip) for i in range(4)]
+                                   indicatoron=True, command=self.on_rb1) for i in range(4)]
         self.work_state = tk.IntVar()
         self.work_state.set(0)  # 0代表标数据（输入是视频），1代表检测标的数据质量（输入是视频+json）
         self.work_state_ = 0  # 在选择视频后，由该变量决定软件的工作状态。（设置该变量的目的是：在开放选择工作状态的情况下，保证软件的工作状态统一
         rb2_text = ['标注', '检查']
         self.rb2 = [tk.Radiobutton(self.frame, text=rb2_text[i], value=i, variable=self.work_state,
-                                   font=1) for i in range(2)]
+                                   font=1, command=self.on_rb2) for i in range(2)]
 
         # checkbutton定义
         self.cb_content = tk.IntVar()
@@ -235,6 +235,12 @@ class LabelTool:
             self.output_path = json_file['output_path']
             self.input_path = json_file['input_path']
             self.video_path = json_file['video_path']
+
+    def on_rb2(self):
+        if self.work_state.get() == 0:
+            self.bt0.config(text='选择视频')
+        elif self.work_state.get() == 1:
+            self.bt0.config(text='选择视频和json')
 
     def calculate_gr_count(self):
         gt = len(self.gr_label) // 2
@@ -495,22 +501,7 @@ class LabelTool:
 
         print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
 
-    def info(self):
-        tk.messagebox.showinfo("帮助", "重要提示：\n"
-                                     "软件的所在目录的路径不可以存在中文字符，否则软件无法正常工作。\n"
-                                     "解决方法：把包含软件的文件夹移动至不存在中文字符的目录，点击”生成快捷方式.bat“。\n\n"
-                                     "软件使用帮助：\n"
-                                     "第一步：点击选择视频按钮，选择要处理的视频。\n"
-                                     "第二步：通过修改坐标值修改相应的关键点坐标信息。\n"
-                                     "第三步：处理完一帧后，点击下一帧图像，软件会自动保存该帧信息。\n"
-                                     "第四步：处理完所有帧，点击保存输出文件按钮，可以修改输出路径和文件名。\n\n"
-                                     "其他：\n"
-                                     "默认输出文件名为视频编号.json，默认输出路径为 C:\labeltool\output \n "
-                                     "可通过更改默认输出路径按钮修改默认输出路径，也可以在保存输出文件时指定。\n"
-                                     "一个视频处理完后，可点击选择视频开始处理下一视频。\n"
-                                     "辛苦啦~")
-
-    def show_tip(self):
+    def on_rb1(self):
         if self.start:
             if self.gr.get() == 1:
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为张开")
@@ -559,7 +550,7 @@ class LabelTool:
 
         elif self.work_state.get() == 1:  # 检查
             self.label8.config(text='该帧在原json中被舍弃')
-            self.is_raw_video = tkinter.messagebox.askquestion('输入视频类型', '选择的是原始视频（非处理后的视频）吗？')  # 该变量仅在检查状态下生效
+            self.is_raw_video = tkinter.messagebox.askquestion('输入视频类型', '选择的是原始视频（非裁剪后的视频）吗？')  # 该变量仅在检查状态下生效
             if self.is_raw_video == 'yes':
                 path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.input_path)
             else:
