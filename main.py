@@ -356,11 +356,11 @@ class LabelTool:
             elif event.char == '6':
                 self.reset_coordinate()
                 return
-            elif event.char == '3':  # 伸掌起始帧
+            elif event.char == '2':  # 伸掌起始帧
                 self.rb1[1].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为伸掌")
                 return
-            elif event.char == '2':  # 握拳起始帧
+            elif event.char == '3':  # 握拳起始帧
                 self.rb1[2].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为握拳")
                 return
