@@ -100,7 +100,7 @@ class LabelTool:
         # self.bt6 = tk.Button(self.frame, text="使用说明", command=self.info)
         # self.bt7 = tk.Button(self.frame, text="更改默认输入路径", command=self.change_input_path)
         # self.bt8 = tk.Button(self.frame, text='更改视频输出路径', command=self.change_video_path)
-        # self.bt9 = tk.Button(self.frame, text='更改软件配置', command=self.config_software)
+        self.bt9 = tk.Button(self.frame, text='更改软件配置', command=self.config_software)
 
         # label定义
         self.label1 = tk.Label(self.frame, font=200, text="帧序号：" + "0/0")
