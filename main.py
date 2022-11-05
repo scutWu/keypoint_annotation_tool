@@ -42,7 +42,8 @@ class LabelTool:
         self.fail_frame = []  # 没检测到关键点的帧序号
         self.first = 0  # 起始帧位置，初始为0
         self.ddl = 0
-        self.step = 4  # 键盘控制关键点移动的步长
+        self.step = tk.IntVar()  # 键盘控制关键点移动的步长
+        self.step.set(4)
         self.gr_label = []
 
         # entry定义
@@ -99,6 +100,7 @@ class LabelTool:
         # self.bt6 = tk.Button(self.frame, text="使用说明", command=self.info)
         self.bt7 = tk.Button(self.frame, text="更改默认输入路径", command=self.change_input_path)
         self.bt8 = tk.Button(self.frame, text='更改视频输出路径', command=self.change_video_path)
+        self.bt9 = tk.Button(self.frame, text='更改软件配置', command=self.config_software)
 
         # label定义
         self.label1 = tk.Label(self.frame, font=200, text="帧序号：" + "0/0")
@@ -120,9 +122,9 @@ class LabelTool:
         # self.parent_canvas.create_window(0, 0, window=self.frame)
 
         # 输入输出路径定义、创建默认文件夹和path.json
-        self.output_path = ''
-        self.input_path = ''
-        self.video_path = ''
+        self.output_path = tk.StringVar()
+        self.input_path = tk.StringVar()
+        self.video_path = tk.StringVar()
         self.create_init_folder()
 
         # 绑定函数
@@ -194,15 +196,16 @@ class LabelTool:
         self.cb3.place(x=20, y=30)  # 十秒视频起始帧
 
         # button布局
-        self.bt0.place(x=710, y=450, width=140, height=31)  # 选择视频
-        self.bt2.place(x=710, y=490, width=140, height=31)  # 重置当前帧坐标
-        self.bt3.place(x=710, y=530, width=140, height=31)  # 上一帧图像
-        self.bt4.place(x=710, y=570, width=140, height=31)  # 下一帧图像
+        self.bt0.place(x=710, y=490, width=140, height=31)  # 选择视频
+        self.bt2.place(x=710, y=530, width=140, height=31)  # 重置当前帧坐标
+        self.bt3.place(x=710, y=570, width=140, height=31)  # 上一帧图像
+        self.bt4.place(x=710, y=610, width=140, height=31)  # 下一帧图像
         # self.bt1.place(x=710, y=610, width=140, height=31)  # test
-        self.bt5.place(x=710, y=650, width=140, height=31)  # 保存输出文件和视频
-        self.bt.place(x=710, y=730, width=140, height=31)  # 更改json输出路径
-        self.bt8.place(x=710, y=690, width=140, height=31)  # 更改视频输出路径
-        self.bt7.place(x=710, y=770, width=140, height=31)  # 更改默认输入路径
+        self.bt5.place(x=710, y=690, width=140, height=31)  # 保存输出文件和视频
+        # self.bt.place(x=710, y=730, width=140, height=31)  # 更改json输出路径
+        # self.bt8.place(x=710, y=690, width=140, height=31)  # 更改视频输出路径
+        # self.bt7.place(x=710, y=770, width=140, height=31)  # 更改默认输入路径
+        self.bt9.place(x=710, y=730, width=140, height=31)  # 修改软件配置
 
         # label布局
         self.label1.place(x=240, y=5)  # 帧序号
@@ -232,9 +235,10 @@ class LabelTool:
                 json.dump(json_file, file)
         with open('./path.json', 'r') as file:
             json_file = json.load(file)
-            self.output_path = json_file['output_path']
-            self.input_path = json_file['input_path']
-            self.video_path = json_file['video_path']
+            self.output_path.set(json_file['output_path'])
+            self.input_path.set(json_file['input_path'])
+            self.video_path.set(json_file['video_path'])
+
 
     def on_rb2(self):
         if self.work_state.get() == 0:
@@ -314,6 +318,25 @@ class LabelTool:
         for i in range(3):
             cb5[i + 8].place(x=10, y=370+40*i)
 
+    def config_software(self):
+        top = tk.Toplevel()
+        top.title('修改配置')
+        top.geometry('640x460')
+        top.wm_attributes('-topmost', 1)
+        tk.Button(top, text='更改默认视频输入路径', command=self.change_input_path).place(x=20, y=8, width=140, height=31)
+        tk.Entry(top, textvariable=self.input_path, state=tk.DISABLED).place(x=180, y=8, width=420, height=31)
+        tk.Button(top, text='更改默认json输出路径', command=self.change_output_path).place(x=20, y=58, width=140, height=31)
+        tk.Entry(top, textvariable=self.output_path, state=tk.DISABLED).place(x=180, y=58, width=420, height=31)
+        tk.Button(top, text='更改默认视频输出路径', command=self.change_video_path).place(x=20, y=108, width=140, height=31)
+        tk.Entry(top, textvariable=self.video_path, state=tk.DISABLED).place(x=180, y=108, width=420, height=31)
+        tk.Label(top, text='关键点移动步长：', font=1).place(x=20, y=158)
+        rb = [tk.Radiobutton(top, text=str(i), value=i, variable=self.step) for i in range(2, 9)]
+        for i in range(7):
+            rb[i].place(x=180+45*i, y=158)
+
+
+
+
     def clear_rb(self):
         # self.rb[self.index.get()].deselect()
         self.rb[21].select()
@@ -391,13 +414,13 @@ class LabelTool:
                 # elif event.char == '5':
                 #     self.index.set(17)
                 elif event.char == 'a' or event.char == 'A' or event.keycode == 37:  # 向左
-                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step))
+                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step.get()))
                 elif event.char == 'w' or event.char == 'W' or event.keycode == 38:  # 向上
-                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) - self.step))
+                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) - self.step.get()))
                 elif event.char == 's' or event.char == 'S' or event.keycode == 40:  # 向下
-                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) + self.step))
+                    self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) + self.step.get()))
                 elif event.char == 'd' or event.char == 'D' or event.keycode == 39:  # 向右
-                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) + self.step))
+                    self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) + self.step.get()))
             else:  # 在clear_radiobutton后，按任意键选中第七个radiobutton
                 self.index.set(6)
 
@@ -497,9 +520,9 @@ class LabelTool:
         #             print('end')
         #             break
         #         i += 1
-        pass
-
-        print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
+        # pass
+        self.saved_file_name()
+        # print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
 
     def on_rb1(self):
         if self.start:
@@ -512,36 +535,36 @@ class LabelTool:
 
     def write_path_file(self):
         with open('./path.json', 'w') as file:
-            json_file = dict(input_path=self.input_path, output_path=self.output_path, video_path=self.video_path)
+            json_file = dict(input_path=self.input_path.get(), output_path=self.output_path.get(),
+                             video_path=self.video_path.get())
             json.dump(json_file, file)
 
     def change_output_path(self):
-        path = tk.filedialog.askdirectory(initialdir=self.output_path)
+        path = tk.filedialog.askdirectory(initialdir=self.output_path.get())
         if path != '':
-            self.output_path = path
-            # self.label3.config(text="默认输出路径：" + self.output_path)
+            self.output_path.set(path)
             self.write_path_file()
 
     def change_video_path(self):
-        path = tk.filedialog.askdirectory(initialdir=self.video_path)
+        path = tk.filedialog.askdirectory(initialdir=self.video_path.get())
         if path != '':
-            self.video_path = path
+            self.video_path.set(path)
             self.write_path_file()
-            if not os.path.exists(self.video_path + '/1'):
-                os.mkdir(self.video_path + '/1')
-            if not os.path.exists(self.video_path + '/2'):
-                os.mkdir(self.video_path + '/2')
+            if not os.path.exists(self.video_path.get() + '/1'):
+                os.mkdir(self.video_path.get() + '/1')
+            if not os.path.exists(self.video_path.get() + '/2'):
+                os.mkdir(self.video_path.get() + '/2')
 
     def change_input_path(self):
-        path = tk.filedialog.askdirectory(initialdir=self.input_path)
+        path = tk.filedialog.askdirectory(initialdir=self.input_path.get())
         if path != '':
-            self.input_path = path
+            self.input_path.set(path)
             self.write_path_file()
 
     def select_path(self):
         if self.work_state.get() == 0:  # 标注
             self.label8.config(text='该帧无landmark,勿重置坐标')
-            path_ = tk.filedialog.askopenfilename(initialdir=self.input_path)
+            path_ = tk.filedialog.askopenfilename(initialdir=self.input_path.get())
             if path_ != "":
                 self.reset()
                 self.videoPath.set(path_)
@@ -552,13 +575,13 @@ class LabelTool:
             self.label8.config(text='该帧在原json中被舍弃')
             self.is_raw_video = tkinter.messagebox.askquestion('输入视频类型', '选择的是原始视频（非裁剪后的视频）吗？')  # 该变量仅在检查状态下生效
             if self.is_raw_video == 'yes':
-                path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.input_path)
+                path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.input_path.get())
             else:
-                path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.video_path + '/1/')
+                path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.video_path.get() + '/1/')
             if path_to_video == '':
                 return
             # json文件的地址，该变量仅在检查状态下生效
-            self.path_to_json = tk.filedialog.askopenfilename(title='选择json文件', initialdir=self.output_path)
+            self.path_to_json = tk.filedialog.askopenfilename(title='选择json文件', initialdir=self.output_path.get())
             if self.path_to_json == '':
                 return
             # 判断所选视频和json是否对应
@@ -566,7 +589,7 @@ class LabelTool:
             video_name, suffix = os.path.splitext(name)
             _, name = os.path.split(self.path_to_json)
             json_name, suffix = os.path.splitext(name)
-            if video_name == json_name:
+            if video_name == json_name.split('_')[0]:
                 self.reset()
                 self.videoPath.set(path_to_video)
                 self.process_with_annotationInfo()
@@ -587,7 +610,7 @@ class LabelTool:
             i = int(temp_str)
             # print("var = " + str(var))
             # print("i = " + str(i))
-            temp_cont = self.entry_content[i - 1].get()
+            temp_cont = self.entry_content[i - 2].get()  # entry_content前面有两个tk变量
             # print("entry_content[" + str(i) + "] = " + temp_cont)
             if temp_cont.replace("-", "").isdigit() and temp_cont != "":
                 # print(temp_cont)
@@ -785,9 +808,20 @@ class LabelTool:
         # print(self.gr_label)
         return True
 
+    def get_json_filename(self):
+        if self.work_state_ == 0:
+            return self.filename
+        elif self.work_state_ == 1:
+            count = 0
+            for item in os.listdir(self.output_path.get()):
+                if self.filename in item:
+                    count += 1
+            return self.filename + '_v' + str(count)
+
     def write_json(self):
-        name = tk.filedialog.asksaveasfilename(title=u"保存文件", initialdir=self.output_path,
-                                               initialfile=self.filename, filetypes=[("json", ".json")])
+        json_name = self.get_json_filename()
+        name = tk.filedialog.asksaveasfilename(title=u"保存文件", initialdir=self.output_path.get(),
+                                               initialfile=json_name, filetypes=[("json", ".json")])
         if name == '':
             tk.messagebox.showwarning("提示", "未保存成功，请点击保存输出文件按钮")
             return False
@@ -827,7 +861,7 @@ class LabelTool:
 
     def generate_video(self):
         # 生成裁剪后的视频 1
-        outpath = self.video_path + '/1/' + self.filename + '.mp4'
+        outpath = self.video_path.get() + '/1/' + self.filename + '.mp4'
         dim = (self.original_width, self.original_height)
         writer = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
         # print(path, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
@@ -846,7 +880,7 @@ class LabelTool:
 
         # 生成裁剪后的视频 2
         cap = cv2.VideoCapture(self.videoPath.get())
-        outpath = self.video_path + '/2/' + self.filename + '.mp4'
+        outpath = self.video_path.get() + '/2/' + self.filename + '.mp4'
         writer2 = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
         i = 1
         while cap.isOpened():
