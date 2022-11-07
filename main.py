@@ -26,7 +26,7 @@ class LabelTool:
         self.parent.geometry('880x820')
         # self.parent_canvas = tk.Canvas(self.parent, width=880, height=820, scrollregion=(0, 0, 880, 820))
         # self.parent_canvas.pack(fill='both', expand=True)
-        self.frame = tk.Frame(self.parent)
+        self.frame = tk.Frame(self.parent, takefocus=True)
         self.frame.pack(fill='both', expand=True)
 
         # 参数定义
@@ -47,8 +47,6 @@ class LabelTool:
         self.ddl = 0
         self.step = tk.IntVar()  # 键盘控制关键点移动的步长
         self.step.set(4)
-        self.keyboard_type = tk.IntVar()  # 0代表104键键盘， 1代表78键键盘
-        self.keyboard_type.set(0)
         self.gr_label = []
         # self.img = []  # 缓存每一帧图片，内存换时间
 
@@ -341,11 +339,6 @@ class LabelTool:
         rb = [tk.Radiobutton(top, text=str(i), value=i, variable=self.step) for i in range(2, 9)]
         for i in range(7):
             rb[i].place(x=180 + 45 * i, y=158)
-        tk.Label(top, text='键盘类型：', font=1).place(x=50, y=195)
-        text = ['104', '78']
-        rb2 = [tk.Radiobutton(top, text=text[i], value=i, variable=self.keyboard_type) for i in range(2)]
-        for i in range(2):
-            rb2[i].place(x=180 + 60 * i, y=195)
 
     def clear_rb(self):
         # self.rb[self.index.get()].deselect()
@@ -389,31 +382,27 @@ class LabelTool:
     def on_keyboard(self, event):
         if self.start:
             # print(event, event.keycode, event.keysym, event.char)  # 根据这行代码来确定自己的按键信息
-            key_info = [
-                ['0', '6', '5', '1', '2', '3'],
-                ['k', ']', '[', 'l', ';', "'"]
-            ]
             if event.keysym == 'Return':
                 self.next_image()
                 return
-            elif event.char == key_info[self.keyboard_type.get()][0]:
+            elif event.char == '0' or event.char == 'k' or event.char == 'K':
                 self.previous_image()
                 return
-            elif event.char == key_info[self.keyboard_type.get()][1]:
+            elif event.char == '6' or event.char == ']':
                 self.reset_coordinate()
                 return
-            elif event.char == key_info[self.keyboard_type.get()][2]:
+            elif event.char == '5' or event.char == '[':
                 self.click_cb3()
                 return
-            elif event.char == key_info[self.keyboard_type.get()][3]:  # 过渡帧
+            elif event.char == '1' or event.char == 'l' or event.char == 'L':  # 过渡帧
                 self.rb1[0].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
                 return
-            elif event.char == key_info[self.keyboard_type.get()][4]:  # 伸掌起始帧
+            elif event.char == '2' or event.char == ';':  # 伸掌起始帧
                 self.rb1[1].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为伸掌")
                 return
-            elif event.char == key_info[self.keyboard_type.get()][5]:  # 握拳起始帧
+            elif event.char == '3' or event.char == "'":  # 握拳起始帧
                 self.rb1[2].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为握拳")
                 return
@@ -640,7 +629,7 @@ class LabelTool:
             i = int(temp_str)
             # print("var = " + str(var))
             # print("i = " + str(i))
-            temp_cont = self.entry_content[i - 3].get()  # entry_content前面有3个tk变量
+            temp_cont = self.entry_content[i - 2].get()  # entry_content前面有2个tk变量
             # print("entry_content[" + str(i) + "] = " + temp_cont)
             if temp_cont.replace("-", "").isdigit() and temp_cont != "":
                 # print(temp_cont)
