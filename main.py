@@ -10,7 +10,10 @@ import os
 from shutil import rmtree
 from PIL import Image, ImageTk
 import math
+import time
 import ctypes
+
+
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
 # import keyboard
@@ -44,10 +47,13 @@ class LabelTool:
         self.ddl = 0
         self.step = tk.IntVar()  # 键盘控制关键点移动的步长
         self.step.set(4)
+        self.keyboard_type = tk.IntVar()  # 0代表104键键盘， 1代表78键键盘
+        self.keyboard_type.set(0)
         self.gr_label = []
+        # self.img = []  # 缓存每一帧图片，内存换时间
 
         # entry定义
-        self.entry_list = [tk.Entry(self.frame) for i in range(42)]
+        self.entry_list = [tk.Entry(self.frame, takefocus=False) for i in range(42)]
         self.entry_content = [tk.StringVar() for i in range(42)]  # 当前帧的关键点
         for i in range(42):
             self.entry_list[i].config(textvariable=self.entry_content[i])
@@ -56,23 +62,23 @@ class LabelTool:
         self.index = tk.IntVar()
         self.index.set(21)  # 21代表没有选中
         self.rb = [tk.Radiobutton(self.frame, text="", value=i, font=("Helvetica", 5), variable=self.index
-                                  , command=self.frame.focus_set) for i in range(22)]
+                                  , command=self.frame.focus_set, takefocus=False) for i in range(22)]
         self.gr = tk.IntVar()
         self.gr.set(3)  # 0代表过渡帧(默认)，1代表张开，2代表握紧，3代表没有选中
         rb1_text = ["过渡帧", "伸掌起始帧", "握拳起始帧", ""]
         self.rb1 = [tk.Radiobutton(self.frame, text=rb1_text[i], value=i, variable=self.gr, font=1,
-                                   indicatoron=True, command=self.on_rb1) for i in range(4)]
+                                   indicatoron=True, command=self.on_rb1, takefocus=False) for i in range(4)]
         self.work_state = tk.IntVar()
         self.work_state.set(0)  # 0代表标数据（输入是视频），1代表检测标的数据质量（输入是视频+json）
         self.work_state_ = 0  # 在选择视频后，由该变量决定软件的工作状态。（设置该变量的目的是：在开放选择工作状态的情况下，保证软件的工作状态统一
         rb2_text = ['标注', '检查']
         self.rb2 = [tk.Radiobutton(self.frame, text=rb2_text[i], value=i, variable=self.work_state,
-                                   font=1, command=self.on_rb2) for i in range(2)]
+                                   font=1, command=self.on_rb2, takefocus=False) for i in range(2)]
 
         # checkbutton定义
         self.cb_content = tk.IntVar()
         self.cb = tk.Checkbutton(self.frame, text="辅助网格线", font=200, variable=self.cb_content,
-                                 command=self.on_cb)
+                                 command=self.on_cb, takefocus=False)
         self.complex = tk.IntVar()  # 复杂场景，0代表简单场景，1代表复杂场景, 初始为简单场景
         self.complex.set(0)
         self.complex_type = []
@@ -82,7 +88,7 @@ class LabelTool:
         self.cb3_value = tk.IntVar()  # 是否选定初始帧，0代表未选定，1代表已选定
         self.cb3_value.set(0)
         self.cb3 = tk.Checkbutton(self.frame, text="十秒视频起始帧：" + "未标注",
-                                  font=200, variable=self.cb3_value, command=self.on_cb3)
+                                  font=200, variable=self.cb3_value, command=self.on_cb3, takefocus=False)
 
         # 二级界面复杂类型变量定义，由二级界面的checkbutton绑定,其中cb5_value[1]代表人脸
         self.cb5_value = [tk.IntVar() for i in range(11)]
@@ -90,17 +96,17 @@ class LabelTool:
             self.cb5_value[i].set(0)
 
         # button定义
-        self.bt = tk.Button(self.frame, text="更改json输出路径", command=self.change_output_path)
+        # self.bt = tk.Button(self.frame, text="更改json输出路径", command=self.change_output_path)
         self.bt0 = tk.Button(self.frame, text="选择视频", command=self.select_path)
         self.bt1 = tk.Button(self.frame, text="test", command=self.mytest)
-        self.bt2 = tk.Button(self.frame, text="重置当前帧坐标", command=self.reset_coordinate)
-        self.bt3 = tk.Button(self.frame, text="上一帧图像", command=self.previous_image)
-        self.bt4 = tk.Button(self.frame, text="下一帧图像", command=self.next_image)
+        self.bt2 = tk.Button(self.frame, text="重置当前帧坐标", command=self.reset_coordinate, takefocus=False)
+        self.bt3 = tk.Button(self.frame, text="上一帧图像", command=self.previous_image, takefocus=False)
+        self.bt4 = tk.Button(self.frame, text="下一帧图像", command=self.next_image, takefocus=False)
         self.bt5 = tk.Button(self.frame, text="保存输出文件和视频", command=self.save_file)
         # self.bt6 = tk.Button(self.frame, text="使用说明", command=self.info)
         # self.bt7 = tk.Button(self.frame, text="更改默认输入路径", command=self.change_input_path)
         # self.bt8 = tk.Button(self.frame, text='更改视频输出路径', command=self.change_video_path)
-        self.bt9 = tk.Button(self.frame, text='更改软件配置', command=self.config_software)
+        self.bt9 = tk.Button(self.frame, text='更改软件配置', command=self.config_software, takefocus=False)
 
         # label定义
         self.label1 = tk.Label(self.frame, font=200, text="帧序号：" + "0/0")
@@ -132,6 +138,9 @@ class LabelTool:
         self.frame.bind("<KeyPress>", self.on_keyboard)
         self.frame.bind("<Button-1>", self.focus_on_frame)
         self.frame.focus_set()
+        # entry绑定回调函数
+        for i in range(42):
+            self.entry_content[i].trace_variable("w", self.callback_test)
 
         # 设置布局
         self.layout()
@@ -143,19 +152,19 @@ class LabelTool:
         for i in range(0, 10):
             self.entry_list[i].place(x=520 + 80 * (i % 2), y=80 + 20 * (i - (i % 2)), width=60, height=16)
             if (i % 2) == 0:
-                self.rb[j].place(x=470, y=80+20*i)
+                self.rb[j].place(x=470, y=80 + 20 * i)
                 j += 1
                 la = tk.Label(self.frame, text=str(j), bg="red")
-                la.place(x=495, y=80+20*i)
+                la.place(x=495, y=80 + 20 * i)
         # 第二部分
         # j = 5
         for i in range(10, 18):
             self.entry_list[i].place(x=520 + 80 * (i % 2), y=91 + 20 * (i - (i % 2)), width=60, height=16)
             if (i % 2) == 0:
-                self.rb[j].place(x=470, y=91+20*i)
+                self.rb[j].place(x=470, y=91 + 20 * i)
                 j += 1
-                la = tk.Label(self.frame, text=str(j-5), bg="green")
-                la.place(x=495, y=91+20*i)
+                la = tk.Label(self.frame, text=str(j - 5), bg="green")
+                la.place(x=495, y=91 + 20 * i)
         # 第三部分
         # j = 9
         for i in range(18, 26):
@@ -163,26 +172,26 @@ class LabelTool:
             if (i % 2) == 0:
                 self.rb[j].place(x=470, y=102 + 20 * i)
                 j += 1
-                la = tk.Label(self.frame, text=str(j-9), bg="yellow")
+                la = tk.Label(self.frame, text=str(j - 9), bg="yellow")
                 la.place(x=495, y=102 + 20 * i)
         # 第四部分
         # j = 13
         for i in range(26, 34):
             self.entry_list[i].place(x=720 + 80 * (i % 2), y=0 - 440 + 20 * (i - (i % 2)), width=60, height=16)
             if (i % 2) == 0:
-                self.rb[j].place(x=675, y=0-440+20*i)
+                self.rb[j].place(x=675, y=0 - 440 + 20 * i)
                 j += 1
-                la = tk.Label(self.frame, text=str(j-13), bg="cyan")
-                la.place(x=700, y=0-440+20*i)
+                la = tk.Label(self.frame, text=str(j - 13), bg="cyan")
+                la.place(x=700, y=0 - 440 + 20 * i)
         # 第五部分
         # j = 17
         for i in range(34, 42):
             self.entry_list[i].place(x=720 + 80 * (i % 2), y=-390 + 20 * (i - (i % 2)), width=60, height=16)
             if (i % 2) == 0:
-                self.rb[j].place(x=675, y=0-390+20*i)
+                self.rb[j].place(x=675, y=0 - 390 + 20 * i)
                 j += 1
-                la = tk.Label(self.frame, text=str(j-17), bg="pink")
-                la.place(x=700, y=0-390+20*i)
+                la = tk.Label(self.frame, text=str(j - 17), bg="pink")
+                la.place(x=700, y=0 - 390 + 20 * i)
 
         # radiobutton布局
         for i in range(3):
@@ -200,7 +209,7 @@ class LabelTool:
         self.bt2.place(x=710, y=530, width=140, height=31)  # 重置当前帧坐标
         self.bt3.place(x=710, y=570, width=140, height=31)  # 上一帧图像
         self.bt4.place(x=710, y=610, width=140, height=31)  # 下一帧图像
-        # self.bt1.place(x=710, y=610, width=140, height=31)  # test
+        # self.bt1.place(x=710, y=650, width=140, height=31)  # test
         self.bt5.place(x=710, y=690, width=140, height=31)  # 保存输出文件和视频
         # self.bt.place(x=710, y=730, width=140, height=31)  # 更改json输出路径
         # self.bt8.place(x=710, y=690, width=140, height=31)  # 更改视频输出路径
@@ -238,7 +247,6 @@ class LabelTool:
             self.output_path.set(json_file['output_path'])
             self.input_path.set(json_file['input_path'])
             self.video_path.set(json_file['video_path'])
-
 
     def on_rb2(self):
         if self.work_state.get() == 0:
@@ -308,15 +316,15 @@ class LabelTool:
         label1.place(x=10, y=10)
         label1.bind('<Destroy>', self.when_destroy)
         for i in range(4):
-            cb5[i].place(x=40, y=40+30*i)
+            cb5[i].place(x=40, y=40 + 30 * i)
         tk.Label(top, text=label_text[1], font=1).place(x=10, y=170)
         for i in range(2):
-            cb5[i + 4].place(x=40, y=200+30*i)
+            cb5[i + 4].place(x=40, y=200 + 30 * i)
         tk.Label(top, text=label_text[2], font=1).place(x=10, y=270)
         for i in range(2):
-            cb5[i + 6].place(x=40, y=300+30*i)
+            cb5[i + 6].place(x=40, y=300 + 30 * i)
         for i in range(3):
-            cb5[i + 8].place(x=10, y=370+40*i)
+            cb5[i + 8].place(x=10, y=370 + 40 * i)
 
     def config_software(self):
         top = tk.Toplevel()
@@ -332,14 +340,25 @@ class LabelTool:
         tk.Label(top, text='关键点移动步长：', font=1).place(x=20, y=158)
         rb = [tk.Radiobutton(top, text=str(i), value=i, variable=self.step) for i in range(2, 9)]
         for i in range(7):
-            rb[i].place(x=180+45*i, y=158)
-
-
-
+            rb[i].place(x=180 + 45 * i, y=158)
+        tk.Label(top, text='键盘类型：', font=1).place(x=50, y=195)
+        text = ['104', '78']
+        rb2 = [tk.Radiobutton(top, text=text[i], value=i, variable=self.keyboard_type) for i in range(2)]
+        for i in range(2):
+            rb2[i].place(x=180 + 60 * i, y=195)
 
     def clear_rb(self):
         # self.rb[self.index.get()].deselect()
         self.rb[21].select()
+
+    # 响应键盘专用
+    def click_cb3(self):
+        if self.start:
+            if self.cb3_value.get() == 1:
+                self.cb3.deselect()
+            elif self.cb3_value.get() == 0:
+                self.cb3.select()
+            self.on_cb3()
 
     def on_cb3(self):
         if self.start:
@@ -369,27 +388,34 @@ class LabelTool:
 
     def on_keyboard(self, event):
         if self.start:
-            # print(event.keycode, event.keysym, event.char) # 根据这行代码来确定自己的按键信息
+            # print(event, event.keycode, event.keysym, event.char)  # 根据这行代码来确定自己的按键信息
+            key_info = [
+                ['0', '6', '5', '1', '2', '3'],
+                ['k', ']', '[', 'l', ';', "'"]
+            ]
             if event.keysym == 'Return':
                 self.next_image()
                 return
-            elif event.char == '0':
+            elif event.char == key_info[self.keyboard_type.get()][0]:
                 self.previous_image()
                 return
-            elif event.char == '6':
+            elif event.char == key_info[self.keyboard_type.get()][1]:
                 self.reset_coordinate()
                 return
-            elif event.char == '2':  # 伸掌起始帧
+            elif event.char == key_info[self.keyboard_type.get()][2]:
+                self.click_cb3()
+                return
+            elif event.char == key_info[self.keyboard_type.get()][3]:  # 过渡帧
+                self.rb1[0].select()
+                self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
+                return
+            elif event.char == key_info[self.keyboard_type.get()][4]:  # 伸掌起始帧
                 self.rb1[1].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为伸掌")
                 return
-            elif event.char == '3':  # 握拳起始帧
+            elif event.char == key_info[self.keyboard_type.get()][5]:  # 握拳起始帧
                 self.rb1[2].select()
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为握拳")
-                return
-            elif event.char == '1':  # 过渡帧
-                self.rb1[0].select()
-                self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
                 return
             i = self.index.get()
             if i != 21:
@@ -403,16 +429,15 @@ class LabelTool:
                         self.index.set(i - 1)
                     else:
                         self.index.set(20)
-                # elif event.char == '1':  # index设为0
-                #     self.index.set(0)
-                # elif event.char == '2':
-                #     self.index.set(5)
-                # elif event.char == '3':
-                #     self.index.set(9)
-                # elif event.char == '4':
-                #     self.index.set(13)
-                # elif event.char == '5':
-                #     self.index.set(17)
+                elif event.char == 'f' or event.char == 'F':  # 按下f，跳段
+                    if i < 4:
+                        self.index.set(i + 5)
+                    elif i == 4:
+                        self.index.set(8)
+                    elif i > 16:
+                        self.index.set(i - 17)
+                    else:
+                        self.index.set(i + 4)
                 elif event.char == 'a' or event.char == 'A' or event.keycode == 37:  # 向左
                     self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) - self.step.get()))
                 elif event.char == 'w' or event.char == 'W' or event.keycode == 38:  # 向上
@@ -421,8 +446,6 @@ class LabelTool:
                     self.entry_content[2 * i + 1].set(str(int(self.entry_content[2 * i + 1].get()) + self.step.get()))
                 elif event.char == 'd' or event.char == 'D' or event.keycode == 39:  # 向右
                     self.entry_content[2 * i].set(str(int(self.entry_content[2 * i].get()) + self.step.get()))
-            else:  # 在clear_radiobutton后，按任意键选中第七个radiobutton
-                self.index.set(6)
 
     # 响应鼠标点击
     def on_click(self, event):
@@ -521,8 +544,15 @@ class LabelTool:
         #             break
         #         i += 1
         # pass
-        self.saved_file_name()
+        self.cal_time()
         # print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
+
+    def cal_time(self):
+        st = time.time()
+        for i in range(self.frame_count - 1):
+            self.next_image()
+        et = time.time()
+        print('time: ' + str(et - st))
 
     def on_rb1(self):
         if self.start:
@@ -610,7 +640,7 @@ class LabelTool:
             i = int(temp_str)
             # print("var = " + str(var))
             # print("i = " + str(i))
-            temp_cont = self.entry_content[i - 2].get()  # entry_content前面有两个tk变量
+            temp_cont = self.entry_content[i - 3].get()  # entry_content前面有3个tk变量
             # print("entry_content[" + str(i) + "] = " + temp_cont)
             if temp_cont.replace("-", "").isdigit() and temp_cont != "":
                 # print(temp_cont)
@@ -645,6 +675,8 @@ class LabelTool:
     def load_image(self):
         imagePath = "./video2img/" + str(self.current + 1) + '.jpg'
         pil_image = Image.open(imagePath)
+        # pil_image = Image.fromarray(self.img[self.current][..., ::-1])  # bgr转rgb的第二种方法，不调用opencv接口
+        # pil_image = Image.fromarray(self.img[self.current])  #bgr转rgb的第一种方法：需要调用opencv2接口，在函数process_by_mediapipe里
         self.tkimg = ImageTk.PhotoImage(pil_image)
         self.panel.create_image(2, 2, image=self.tkimg, anchor="nw")
         self.set_entry_content()
@@ -672,7 +704,7 @@ class LabelTool:
             temp = int(self.keypoint_data_new[self.current][0])
             self.rb1[temp].select()
             for i in range(42):
-                if(i % 2) == 0:
+                if (i % 2) == 0:
                     self.entry_content[i].set(str(int(self.keypoint_data_new[self.current][i + 1] * self.image_width)))
                 else:
                     self.entry_content[i].set(str(int(self.keypoint_data_new[self.current][i + 1] * self.image_height)))
@@ -686,7 +718,7 @@ class LabelTool:
             value = self.entry_content[i].get()
             if value == "":
                 continue
-            if(i % 2) == 0:
+            if (i % 2) == 0:
                 temp_coord[j][0] = float(value)
             else:
                 temp_coord[j][1] = float(value)
@@ -774,6 +806,7 @@ class LabelTool:
             self.cb5_value[i].set(0)
         self.bt5.config(text='保存输出文件和视频')
         self.gr_label = []
+        # self.img = []
 
     def next_image(self):
         if self.start:
@@ -796,7 +829,7 @@ class LabelTool:
             tk.messagebox.showwarning('提示', '还未选择十秒视频的起始帧')
             return False
         flag = 0  # 1张开，2握拳
-        for i in range(self.frame_count):
+        for i in range(self.first - 1, self.first + int(10 * self.frame_rate) - 1):
             if self.keypoint_data_new[i][0] != 0:
                 if self.keypoint_data_new[i][0] == flag:
                     tk.messagebox.showwarning('警告', '在第 ' + str(self.gr_label[-1][0]) + ' 帧和第 '
@@ -927,7 +960,7 @@ class LabelTool:
                             # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
                             self.generate_video()
 
-                # self.calculate_gr_count()
+                self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
 
@@ -947,7 +980,7 @@ class LabelTool:
         else:
             tk.messagebox.showwarning("提示", "前面真的没有图像帧了~")
 
-    def process_frame_rate(self, fps):
+    def get_frame_rate(self, fps):
         temp = round(fps, 2)
         temp = str(int(100 * temp))
         while len(temp) < 4:
@@ -971,7 +1004,7 @@ class LabelTool:
         cap = cv2.VideoCapture(self.videoPath.get())
         self.frame_count = int(cap.get(7))  # 视频总帧数
         self.frame_rate = cap.get(5)
-        self.frame_rate = self.process_frame_rate(self.frame_rate)
+        self.frame_rate = self.get_frame_rate(self.frame_rate)
 
         if self.is_raw_video == 'yes':
             self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
@@ -1023,7 +1056,10 @@ class LabelTool:
             'e': 9,
             'f': 10
         }
-        self.complex_type = data['complex_type'][:]
+        try:
+            self.complex_type = data['complex_type'][:]
+        except KeyError:
+            self.complex_type = []
         if len(self.complex_type) == 0:
             self.complex.set(0)
         else:
@@ -1049,8 +1085,10 @@ class LabelTool:
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
                 cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
+                # self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
                 cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
+                # self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             if self.is_raw_video == 'yes':
                 cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
             if i == 0:
@@ -1065,13 +1103,8 @@ class LabelTool:
 
         cv2.destroyAllWindows()
         cap.release()
-
         self.start = True
         self.load_image()
-
-        # entry绑定回调函数
-        for i in range(42):
-            self.entry_content[i].trace_variable("w", self.callback_test)
 
     def process_by_mediapipe(self):
         # mp.solutions.drawing_utils用于绘制
@@ -1088,7 +1121,7 @@ class LabelTool:
         # print(type(path), path)
         self.frame_count = int(cap.get(7))  # 视频总帧数
         self.frame_rate = cap.get(5)
-        self.frame_rate = self.process_frame_rate(self.frame_rate)
+        self.frame_rate = self.get_frame_rate(self.frame_rate)
         self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
         if self.ddl < 1:
             tk.messagebox.showwarning('提示', '视频总帧数不够')
@@ -1128,10 +1161,10 @@ class LabelTool:
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
                 cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
-                # print("resizing index: " + str(i + 1))
+                # self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
                 cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
-                # print("original index: " + str(i + 1))
+                # self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
             cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
 
@@ -1156,48 +1189,90 @@ class LabelTool:
                 for hand_landmarks in results.multi_hand_landmarks:
                     # we can get points using mp_hands
                     self.keypoint_data[i - 1][0] = 0  # 默认都是过度帧
-                    self.keypoint_data[i - 1][1] = round(hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].x, 3)
-                    self.keypoint_data[i - 1][2] = round(hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y, 3)
-                    self.keypoint_data[i - 1][3] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].x, 3)
-                    self.keypoint_data[i - 1][4] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].y, 3)
-                    self.keypoint_data[i - 1][5] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].x, 3)
-                    self.keypoint_data[i - 1][6] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].y, 3)
-                    self.keypoint_data[i - 1][7] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].x, 3)
-                    self.keypoint_data[i - 1][8] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].y, 3)
-                    self.keypoint_data[i - 1][9] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x, 3)
-                    self.keypoint_data[i - 1][10] = round(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y, 3)
-                    self.keypoint_data[i - 1][11] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].x, 3)
-                    self.keypoint_data[i - 1][12] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].y, 3)
-                    self.keypoint_data[i - 1][13] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_PIP].x, 3)
-                    self.keypoint_data[i - 1][14] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_PIP].y, 3)
-                    self.keypoint_data[i - 1][15] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_DIP].x, 3)
-                    self.keypoint_data[i - 1][16] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_DIP].y, 3)
-                    self.keypoint_data[i - 1][17] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x, 3)
-                    self.keypoint_data[i - 1][18] = round(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y, 3)
-                    self.keypoint_data[i - 1][19] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].x, 3)
-                    self.keypoint_data[i - 1][20] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y, 3)
-                    self.keypoint_data[i - 1][21] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_PIP].x, 3)
-                    self.keypoint_data[i - 1][22] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_PIP].y, 3)
-                    self.keypoint_data[i - 1][23] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_DIP].x, 3)
-                    self.keypoint_data[i - 1][24] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_DIP].y, 3)
-                    self.keypoint_data[i - 1][25] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].x, 3)
-                    self.keypoint_data[i - 1][26] = round(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].y, 3)
-                    self.keypoint_data[i - 1][27] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].x, 3)
-                    self.keypoint_data[i - 1][28] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].y, 3)
-                    self.keypoint_data[i - 1][29] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP].x, 3)
-                    self.keypoint_data[i - 1][30] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP].y, 3)
-                    self.keypoint_data[i - 1][31] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_DIP].x, 3)
-                    self.keypoint_data[i - 1][32] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_DIP].y, 3)
-                    self.keypoint_data[i - 1][33] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP].x, 3)
-                    self.keypoint_data[i - 1][34] = round(hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP].y, 3)
-                    self.keypoint_data[i - 1][35] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].x, 3)
-                    self.keypoint_data[i - 1][36] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].y, 3)
-                    self.keypoint_data[i - 1][37] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_PIP].x, 3)
-                    self.keypoint_data[i - 1][38] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_PIP].y, 3)
-                    self.keypoint_data[i - 1][39] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_DIP].x, 3)
-                    self.keypoint_data[i - 1][40] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_DIP].y, 3)
-                    self.keypoint_data[i - 1][41] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].x, 3)
-                    self.keypoint_data[i - 1][42] = round(hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].y, 3)
+                    self.keypoint_data[i - 1][1] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].x, 3)
+                    self.keypoint_data[i - 1][2] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y, 3)
+                    self.keypoint_data[i - 1][3] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].x, 3)
+                    self.keypoint_data[i - 1][4] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].y, 3)
+                    self.keypoint_data[i - 1][5] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].x, 3)
+                    self.keypoint_data[i - 1][6] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].y, 3)
+                    self.keypoint_data[i - 1][7] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].x, 3)
+                    self.keypoint_data[i - 1][8] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].y, 3)
+                    self.keypoint_data[i - 1][9] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x, 3)
+                    self.keypoint_data[i - 1][10] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y, 3)
+                    self.keypoint_data[i - 1][11] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].x, 3)
+                    self.keypoint_data[i - 1][12] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].y, 3)
+                    self.keypoint_data[i - 1][13] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_PIP].x, 3)
+                    self.keypoint_data[i - 1][14] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_PIP].y, 3)
+                    self.keypoint_data[i - 1][15] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_DIP].x, 3)
+                    self.keypoint_data[i - 1][16] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_DIP].y, 3)
+                    self.keypoint_data[i - 1][17] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x, 3)
+                    self.keypoint_data[i - 1][18] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y, 3)
+                    self.keypoint_data[i - 1][19] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].x, 3)
+                    self.keypoint_data[i - 1][20] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y, 3)
+                    self.keypoint_data[i - 1][21] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_PIP].x, 3)
+                    self.keypoint_data[i - 1][22] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_PIP].y, 3)
+                    self.keypoint_data[i - 1][23] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_DIP].x, 3)
+                    self.keypoint_data[i - 1][24] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_DIP].y, 3)
+                    self.keypoint_data[i - 1][25] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].x, 3)
+                    self.keypoint_data[i - 1][26] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].y, 3)
+                    self.keypoint_data[i - 1][27] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].x, 3)
+                    self.keypoint_data[i - 1][28] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].y, 3)
+                    self.keypoint_data[i - 1][29] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP].x, 3)
+                    self.keypoint_data[i - 1][30] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP].y, 3)
+                    self.keypoint_data[i - 1][31] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_DIP].x, 3)
+                    self.keypoint_data[i - 1][32] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_DIP].y, 3)
+                    self.keypoint_data[i - 1][33] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP].x, 3)
+                    self.keypoint_data[i - 1][34] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP].y, 3)
+                    self.keypoint_data[i - 1][35] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].x, 3)
+                    self.keypoint_data[i - 1][36] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].y, 3)
+                    self.keypoint_data[i - 1][37] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_PIP].x, 3)
+                    self.keypoint_data[i - 1][38] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_PIP].y, 3)
+                    self.keypoint_data[i - 1][39] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_DIP].x, 3)
+                    self.keypoint_data[i - 1][40] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_DIP].y, 3)
+                    self.keypoint_data[i - 1][41] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].x, 3)
+                    self.keypoint_data[i - 1][42] = round(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].y, 3)
 
             # 绘制
             if results.multi_hand_landmarks:
@@ -1223,15 +1298,12 @@ class LabelTool:
         elif len(self.fail_frame) > 0:
             self.detect = 'partial'
         print(self.filename, 'detect: ' + self.detect, ', fail frame:', self.fail_frame)
+
         hands_mode.close()
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
         self.load_image()
-
-        # entry绑定回调函数
-        for i in range(42):
-            self.entry_content[i].trace_variable("w", self.callback_test)
 
 
 if __name__ == '__main__':
@@ -1239,7 +1311,3 @@ if __name__ == '__main__':
     tool = LabelTool(root)
     # ctypes.windll.shcore.SetProcessDpiAwareness(1)
     root.mainloop()
-
-
-
-
