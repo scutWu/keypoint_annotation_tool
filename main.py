@@ -949,7 +949,7 @@ class LabelTool:
                             # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
                             self.generate_video()
 
-                self.calculate_gr_count()
+                # self.calculate_gr_count()
                 self.reset()
                 tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
 
