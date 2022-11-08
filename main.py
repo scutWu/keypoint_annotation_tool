@@ -48,6 +48,7 @@ class LabelTool:
         self.step = tk.IntVar()  # 键盘控制关键点移动的步长
         self.step.set(4)
         self.gr_label = []
+        self.keypoint_data_new = []
         # self.img = []  # 缓存每一帧图片，内存换时间
 
         # entry定义
@@ -63,15 +64,19 @@ class LabelTool:
                                   , command=self.frame.focus_set, takefocus=False) for i in range(22)]
         self.gr = tk.IntVar()
         self.gr.set(3)  # 0代表过渡帧(默认)，1代表张开，2代表握紧，3代表没有选中
-        rb1_text = ["过渡帧", "伸掌起始帧", "握拳起始帧", ""]
-        self.rb1 = [tk.Radiobutton(self.frame, text=rb1_text[i], value=i, variable=self.gr, font=1,
+        text = ["过渡帧", "伸掌起始帧", "握拳起始帧", ""]
+        self.rb1 = [tk.Radiobutton(self.frame, text=text[i], value=i, variable=self.gr, font=1,
                                    indicatoron=True, command=self.on_rb1, takefocus=False) for i in range(4)]
         self.work_state = tk.IntVar()
         self.work_state.set(0)  # 0代表标数据（输入是视频），1代表检测标的数据质量（输入是视频+json）
         self.work_state_ = 0  # 在选择视频后，由该变量决定软件的工作状态。（设置该变量的目的是：在开放选择工作状态的情况下，保证软件的工作状态统一
-        rb2_text = ['标注', '检查']
-        self.rb2 = [tk.Radiobutton(self.frame, text=rb2_text[i], value=i, variable=self.work_state,
+        text = ['标注', '检查']
+        self.rb2 = [tk.Radiobutton(self.frame, text=text[i], value=i, variable=self.work_state,
                                    font=1, command=self.on_rb2, takefocus=False) for i in range(2)]
+        self.PorN = tk.IntVar()
+        self.PorN.set(0)  # 0当前帧，1后一帧，2后两帧，-1前一帧，-2前两帧
+        self.rb3 = [tk.Radiobutton(self.frame, text=str(i), value=i, variable=self.PorN,
+                                   command=self.on_rb3) for i in range(-2, 3)]
 
         # checkbutton定义
         self.cb_content = tk.IntVar()
@@ -203,16 +208,16 @@ class LabelTool:
         self.cb3.place(x=20, y=30)  # 十秒视频起始帧
 
         # button布局
-        self.bt0.place(x=710, y=490, width=140, height=31)  # 选择视频
-        self.bt2.place(x=710, y=530, width=140, height=31)  # 重置当前帧坐标
-        self.bt3.place(x=710, y=570, width=140, height=31)  # 上一帧图像
-        self.bt4.place(x=710, y=610, width=140, height=31)  # 下一帧图像
-        # self.bt1.place(x=710, y=650, width=140, height=31)  # test
-        self.bt5.place(x=710, y=690, width=140, height=31)  # 保存输出文件和视频
+        self.bt0.place(x=700, y=530, width=140, height=31)  # 选择视频
+        self.bt2.place(x=700, y=570, width=140, height=31)  # 重置当前帧坐标
+        self.bt3.place(x=700, y=610, width=140, height=31)  # 上一帧图像
+        self.bt4.place(x=700, y=650, width=140, height=31)  # 下一帧图像
+        # self.bt1.place(x=700, y=690, width=140, height=31)  # test
+        self.bt5.place(x=700, y=730, width=140, height=31)  # 保存输出文件和视频
         # self.bt.place(x=710, y=730, width=140, height=31)  # 更改json输出路径
         # self.bt8.place(x=710, y=690, width=140, height=31)  # 更改视频输出路径
         # self.bt7.place(x=710, y=770, width=140, height=31)  # 更改默认输入路径
-        self.bt9.place(x=710, y=730, width=140, height=31)  # 修改软件配置
+        self.bt9.place(x=700, y=770, width=140, height=31)  # 修改软件配置
 
         # label布局
         self.label1.place(x=240, y=5)  # 帧序号
@@ -533,8 +538,16 @@ class LabelTool:
         #             break
         #         i += 1
         # pass
-        self.cal_time()
+        # self.cal_time()
         # print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
+        a = [[1, 2], [3, 4]]
+        b = []
+        for i in range(2):
+            temp = a[i][:]
+            b.append(temp)
+        print('before:', a, b)
+        b[0][0] = 0
+        print('after:', a, b)
 
     def cal_time(self):
         st = time.time()
@@ -582,16 +595,15 @@ class LabelTool:
 
     def select_path(self):
         if self.work_state.get() == 0:  # 标注
-            self.label8.config(text='该帧无landmark,勿重置坐标')
             path_ = tk.filedialog.askopenfilename(initialdir=self.input_path.get())
             if path_ != "":
                 self.reset()
                 self.videoPath.set(path_)
                 self.process_by_mediapipe()
                 self.work_state_ = 0
+                self.label8.config(text='该帧无landmark')
 
         elif self.work_state.get() == 1:  # 检查
-            self.label8.config(text='该帧在原json中被舍弃')
             self.is_raw_video = tkinter.messagebox.askquestion('输入视频类型', '选择的是原始视频（非裁剪后的视频）吗？')  # 该变量仅在检查状态下生效
             if self.is_raw_video == 'yes':
                 path_to_video = tk.filedialog.askopenfilename(title='选择视频', initialdir=self.input_path.get())
@@ -613,6 +625,7 @@ class LabelTool:
                 self.videoPath.set(path_to_video)
                 self.process_with_annotationInfo()
                 self.work_state_ = 1
+                self.label8.config(text='该帧在原json中被舍弃')
             else:
                 tk.messagebox.showwarning('提示', '所选视频与json不对应')
 
@@ -642,7 +655,7 @@ class LabelTool:
                     self.entry_content[i].set(str(int(self.keypoint_data[self.current][i + 1] * self.image_width)))
                 else:
                     self.entry_content[i].set(str(int(self.keypoint_data[self.current][i + 1] * self.image_height)))
-            self.show_coordinate()
+            # self.show_coordinate()
         else:
             tk.messagebox.showwarning("提示", "先点击选择视频~")
         self.frame.focus_set()
@@ -669,15 +682,53 @@ class LabelTool:
         self.tkimg = ImageTk.PhotoImage(pil_image)
         self.panel.create_image(2, 2, image=self.tkimg, anchor="nw")
         self.set_entry_content()
-        self.show_coordinate()
+        # self.show_coordinate()
+        self.deal_with_no_landmark()
         self.process[self.current] = False
         # self.clear_rb()
         self.rb[6].select()
+        self.frame.focus_set()
+
+    def deal_with_no_landmark(self):
         if self.exist[self.current]:
             self.label8.place_forget()
+            for i in range(5):
+                self.rb3[i].place_forget()
         else:
-            self.label8.place(x=440, y=35)
-        self.frame.focus_set()
+            self.label8.place(x=770, y=465, anchor='center')
+            for i in range(5):
+                self.rb3[i].place(x=675+40*i, y=480)
+            self.PorN.set(0)
+
+            # 设置状态
+            if 2 < self.current < self.frame_count - 2:
+                pass
+            elif self.current == 0:
+                self.rb3[0].config(state=tk.DISABLED)
+                self.rb3[1].config(state=tk.DISABLED)
+            elif self.current == 1:
+                self.rb3[0].config(state=tk.DISABLED)
+                self.rb3[1].config(state=tk.ACTIVE)
+            elif self.current == 2:
+                self.rb3[0].config(state=tk.ACTIVE)
+            elif self.current == self.frame_count - 3:
+                self.rb3[4].config(state=tk.ACTIVE)
+            elif self.current == self.frame_count - 2:
+                self.rb3[3].config(state=tk.ACTIVE)
+                self.rb3[4].config(state=tk.DISABLED)
+            elif self.current == self.frame_count - 1:
+                self.rb3[3].config(state=tk.DISABLED)
+                self.rb3[4].config(state=tk.DISABLED)
+
+    # 点击rb3，把临近帧的关键点信息复制到该帧
+    def on_rb3(self):
+        j = self.current + self.PorN.get()
+        for i in range(42):
+            if (i % 2) == 0:
+                self.entry_content[i].set(str(int(self.keypoint_data_new[j][i + 1] * self.image_width)))
+            else:
+                self.entry_content[i].set(str(int(self.keypoint_data_new[j][i + 1] * self.image_height)))
+
 
     # 设置entry的值
     def set_entry_content(self):
@@ -773,6 +824,7 @@ class LabelTool:
         self.panel.delete("all")
         self.start = False
         self.current = 0
+        self.keypoint_data_new = []
         for i in range(42):
             self.entry_list[i].delete(0, tk.END)
         self.label2.config(text="视频编号：")
@@ -1001,7 +1053,6 @@ class LabelTool:
                 tk.messagebox.showwarning('提示', '视频总帧数不够')
             self.first = data['original_index']  # first与current的对应关系：first领先current 1
             self.keypoint_data = [[0.0 for j in range(43)] for i in range(self.frame_count)]  # 原始关键点数据
-            self.keypoint_data_new = [[0 for j in range(43)] for i in range(self.frame_count)]  # 新关键点数据
             self.process = [False for i in range(self.frame_count)]
             self.exist = [False for i in range(self.frame_count)]
             j = 0
@@ -1009,6 +1060,7 @@ class LabelTool:
                 self.keypoint_data[i] = data['label'][j][:]
                 j += 1
                 self.exist[i] = True
+
             # 创建img2video文件夹。处理raw视频可能需要新生成视频
             if not os.path.exists('./img2video'):
                 os.mkdir('./img2video')
@@ -1019,9 +1071,13 @@ class LabelTool:
             self.ddl = 1
             self.first = 1
             self.keypoint_data = data['label'][:]  # 原始关键点数据
-            self.keypoint_data_new = [[0 for j in range(43)] for i in range(data['frame_num'])]  # 新关键点数据
             self.process = [False for i in range(data['frame_num'])]
             self.exist = [True for i in range(data['frame_num'])]
+
+        # 将原始关键点数据深拷贝至
+        for i in range(self.frame_count):
+            temp = self.keypoint_data[i][:]
+            self.keypoint_data_new.append(temp)
 
         self.bt5.config(text='保存输出文件')  # 在检查状态下，除非标注了新的十秒视频起始帧，否则不生成新的视频
         path, name = os.path.split(self.videoPath.get())
@@ -1117,7 +1173,6 @@ class LabelTool:
             # return
         self.label9.config(text="帧率：" + str(self.frame_rate))
         self.keypoint_data = [[0.0 for j in range(43)] for i in range(self.frame_count)]  # 原始关键点数据
-        self.keypoint_data_new = [[0 for j in range(43)] for i in range(self.frame_count)]  # 新关键点数据
         self.process = [False for i in range(self.frame_count)]
         self.exist = [True for i in range(self.frame_count)]
         i = 0
@@ -1275,6 +1330,11 @@ class LabelTool:
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+
+        # 将原始关键点数据深拷贝至
+        for i in range(self.frame_count):
+            temp = self.keypoint_data[i][:]
+            self.keypoint_data_new.append(temp)
 
         path, name = os.path.split(self.videoPath.get())
         self.filename, suffix = os.path.splitext(name)
