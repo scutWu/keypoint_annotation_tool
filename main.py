@@ -11,6 +11,8 @@ from shutil import rmtree
 from PIL import Image, ImageTk
 import math
 import time
+import datetime
+import _thread
 import ctypes
 
 
@@ -29,8 +31,14 @@ class LabelTool:
         self.frame = tk.Frame(self.parent, takefocus=True)
         self.frame.pack(fill='both', expand=True)
 
+        # entry定义
+        self.entry_list = [tk.Entry(self.frame, takefocus=False) for i in range(42)]
+        self.entry_content = [tk.StringVar() for i in range(42)]  # 当前帧的关键点
+        for i in range(42):
+            self.entry_list[i].config(textvariable=self.entry_content[i])
+
         # 参数定义
-        self.videoPath = tk.StringVar()  # 选中的视频的路径
+        self.videoPath = ''  # 选中的视频的路径
         self.current = 0  # 当前帧（当前帧current与显示的帧序号i的关系是：i = current + 1）
         self.start = False  # 是否开始处理视频
         self.rad = 3.0  # 关键点半径
@@ -50,12 +58,7 @@ class LabelTool:
         self.gr_label = []
         self.keypoint_data_new = []
         # self.img = []  # 缓存每一帧图片，内存换时间
-
-        # entry定义
-        self.entry_list = [tk.Entry(self.frame, takefocus=False) for i in range(42)]
-        self.entry_content = [tk.StringVar() for i in range(42)]  # 当前帧的关键点
-        for i in range(42):
-            self.entry_list[i].config(textvariable=self.entry_content[i])
+        self.show = True  # true时显示当前关键点，false时不显示
 
         # radiobutton定义
         self.index = tk.IntVar()
@@ -143,7 +146,9 @@ class LabelTool:
         self.frame.focus_set()
         # entry绑定回调函数
         for i in range(42):
-            self.entry_content[i].trace_variable("w", self.callback_test)
+            self.entry_content[i].trace_variable("w", self.callback_entry)
+        self.index.trace('w', self.callback_index)
+        self.after_id = self.panel.after(650, self.focus_on_current_index)
 
         # 设置布局
         self.layout()
@@ -537,17 +542,10 @@ class LabelTool:
         #             print('end')
         #             break
         #         i += 1
-        # pass
+        pass
         # self.cal_time()
         # print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
-        a = [[1, 2], [3, 4]]
-        b = []
-        for i in range(2):
-            temp = a[i][:]
-            b.append(temp)
-        print('before:', a, b)
-        b[0][0] = 0
-        print('after:', a, b)
+
 
     def cal_time(self):
         st = time.time()
@@ -598,8 +596,11 @@ class LabelTool:
             path_ = tk.filedialog.askopenfilename(initialdir=self.input_path.get())
             if path_ != "":
                 self.reset()
-                self.videoPath.set(path_)
-                self.process_by_mediapipe()
+                self.videoPath = path_
+                try:
+                    _thread.start_new_thread(self.process_by_mediapipe, ())
+                except:
+                    tk.messagebox.showerror('错误', '无法启动线程')
                 self.work_state_ = 0
                 self.label8.config(text='该帧无landmark')
 
@@ -622,8 +623,11 @@ class LabelTool:
             json_name, suffix = os.path.splitext(name)
             if video_name == json_name.split('_')[0]:
                 self.reset()
-                self.videoPath.set(path_to_video)
-                self.process_with_annotationInfo()
+                self.videoPath = path_to_video
+                try:
+                    _thread.start_new_thread(self.process_with_annotationInfo, ())
+                except:
+                    tk.messagebox.showerror('错误', '无法启动线程')
                 self.work_state_ = 1
                 self.label8.config(text='该帧在原json中被舍弃')
             else:
@@ -636,18 +640,6 @@ class LabelTool:
             self.panel.delete("line")
             self.panel0.delete("coord")
 
-    def callback_test(self, var, index, mode):
-        if self.start:
-            temp_str = "".join(list(filter(str.isdigit, var)))
-            i = int(temp_str)
-            # print("var = " + str(var))
-            # print("i = " + str(i))
-            temp_cont = self.entry_content[i - 2].get()  # entry_content前面有2个tk变量
-            # print("entry_content[" + str(i) + "] = " + temp_cont)
-            if temp_cont.replace("-", "").isdigit() and temp_cont != "":
-                # print(temp_cont)
-                self.show_coordinate()
-
     def reset_coordinate(self):
         if self.start:
             for i in range(42):
@@ -655,7 +647,6 @@ class LabelTool:
                     self.entry_content[i].set(str(int(self.keypoint_data[self.current][i + 1] * self.image_width)))
                 else:
                     self.entry_content[i].set(str(int(self.keypoint_data[self.current][i + 1] * self.image_height)))
-            # self.show_coordinate()
         else:
             tk.messagebox.showwarning("提示", "先点击选择视频~")
         self.frame.focus_set()
@@ -682,12 +673,12 @@ class LabelTool:
         self.tkimg = ImageTk.PhotoImage(pil_image)
         self.panel.create_image(2, 2, image=self.tkimg, anchor="nw")
         self.set_entry_content()
-        # self.show_coordinate()
         self.deal_with_no_landmark()
         self.process[self.current] = False
         # self.clear_rb()
         self.rb[6].select()
         self.frame.focus_set()
+        self.label1.config(text="帧序号：" + str(self.current + 1) + "/" + str(self.frame_count))
 
     def deal_with_no_landmark(self):
         if self.exist[self.current]:
@@ -729,7 +720,6 @@ class LabelTool:
             else:
                 self.entry_content[i].set(str(int(self.keypoint_data_new[j][i + 1] * self.image_height)))
 
-
     # 设置entry的值
     def set_entry_content(self):
         if not self.process[self.current]:  # 未处理过的
@@ -749,6 +739,61 @@ class LabelTool:
                 else:
                     self.entry_content[i].set(str(int(self.keypoint_data_new[self.current][i + 1] * self.image_height)))
 
+    def callback_index(self, *args):
+        if self.start:
+            for i in range(21):
+                self.new_show_coordinate(i)
+
+    def callback_entry(self, var, index, mode):
+        if self.start:
+            temp_str = "".join(list(filter(str.isdigit, var)))
+            i = int(temp_str)
+            index_ = i // 2
+            # print("var = " + str(var), " i = " + str(i))
+            temp_cont = self.entry_content[i - 0].get()  # entry_content前面有0个tk变量
+            # print("entry_content[" + str(i - 0) + "] = " + temp_cont)
+            if temp_cont.replace("-", "").isdigit() and temp_cont != "":
+                # print(temp_cont)
+                # self.show_coordinate()
+                self.new_show_coordinate(index_)
+
+    def new_show_coordinate(self, index_):
+        self.panel.delete('a' + str(index_))  # tag为纯数字识别不了- -
+        temp = []
+        if self.entry_content[2 * index_].get() != '':
+            temp.append(float(self.entry_content[2 * index_].get()))
+        else:
+            return
+        if self.entry_content[2 * index_ + 1].get() != '':
+            temp.append(float(self.entry_content[2 * index_ + 1].get()))
+        else:
+            return
+        color = ['red', 'green', 'yellow', 'cyan', 'pink', '']
+        offset = [1, -4, -8, -12, -16]
+        if index_ < 5:
+            finger = 0
+        else:
+            finger = (index_ - 1) // 4
+        self.panel.create_oval(temp[0] - self.rad, temp[1] - self.rad, temp[0] + self.rad, temp[1] + self.rad,
+                               fill=color[finger], tags='a' + str(index_))
+        self.panel.create_text(temp[0] + self.rad + 3.0, temp[1], text=str(index_ + offset[finger]),
+                               tags='a' + str(index_))
+        self.panel.tag_raise("line")
+
+    def focus_on_current_index(self):
+        if self.start:
+            if not self.show:
+                self.panel.delete('a' + str(self.index.get()))
+                self.show = True
+            else:
+                self.entry_content[2 * self.index.get()].set(self.entry_content[2 * self.index.get()].get())
+                self.show = False
+            self.after_id = self.frame.after(650, self.focus_on_current_index)
+        else:
+            self.frame.after_cancel(self.after_id)
+        # print(datetime.datetime.now(), self.after_id)
+
+    # 祭奠死去的函数
     # 从entry中获取关键点坐标，并绘制坐标点
     def show_coordinate(self):
         self.panel.delete("label")
@@ -795,9 +840,6 @@ class LabelTool:
                                    fill="pink", tags="label")
             self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 16),
                                    tags="label")
-
-        # 帧数label
-        self.label1.config(text="帧序号：" + str(self.current + 1) + "/" + str(self.frame_count))
 
         self.panel.tag_raise("line")
 
@@ -953,7 +995,7 @@ class LabelTool:
         cv2.destroyAllWindows()
 
         # 生成裁剪后的视频 2
-        cap = cv2.VideoCapture(self.videoPath.get())
+        cap = cv2.VideoCapture(self.videoPath)
         outpath = self.video_path.get() + '/2/' + self.filename + '.mp4'
         writer2 = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
         i = 1
@@ -1042,7 +1084,7 @@ class LabelTool:
     def process_with_annotationInfo(self):
         with open(self.path_to_json, 'r') as file:
             data = json.load(file)
-        cap = cv2.VideoCapture(self.videoPath.get())
+        cap = cv2.VideoCapture(self.videoPath)
         self.frame_count = int(cap.get(7))  # 视频总帧数
         self.frame_rate = cap.get(5)
         self.frame_rate = self.get_frame_rate(self.frame_rate)
@@ -1080,7 +1122,7 @@ class LabelTool:
             self.keypoint_data_new.append(temp)
 
         self.bt5.config(text='保存输出文件')  # 在检查状态下，除非标注了新的十秒视频起始帧，否则不生成新的视频
-        path, name = os.path.split(self.videoPath.get())
+        path, name = os.path.split(self.videoPath)
         self.filename, suffix = os.path.splitext(name)
         self.label2.config(text="视频编号：" + self.filename)
         self.label9.config(text="帧率：" + str(self.frame_rate))
@@ -1149,6 +1191,7 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
+        self.after_id = self.panel.after(650, self.focus_on_current_index)
         self.load_image()
 
     def process_by_mediapipe(self):
@@ -1162,7 +1205,7 @@ class LabelTool:
         # 参数：1、是否检测静态图片，2、手的数量，3、检测阈值，4、跟踪阈值
         hands_mode = mp_hands.Hands(max_num_hands=1)
 
-        cap = cv2.VideoCapture(self.videoPath.get())
+        cap = cv2.VideoCapture(self.videoPath)
         # print(type(path), path)
         self.frame_count = int(cap.get(7))  # 视频总帧数
         self.frame_rate = cap.get(5)
@@ -1336,7 +1379,7 @@ class LabelTool:
             temp = self.keypoint_data[i][:]
             self.keypoint_data_new.append(temp)
 
-        path, name = os.path.split(self.videoPath.get())
+        path, name = os.path.split(self.videoPath)
         self.filename, suffix = os.path.splitext(name)
         self.label2.config(text="视频编号：" + self.filename)
         self.cb3.config(text="十秒视频起始帧：" + "请在第 " + str(self.ddl) + ' 帧及之前标注')
@@ -1352,6 +1395,7 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
+        self.after_id = self.frame.after(650, self.focus_on_current_index)
         self.load_image()
 
 
