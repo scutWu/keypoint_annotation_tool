@@ -981,7 +981,7 @@ class LabelTool:
             writer = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
             # print(path, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
             for i in range(self.first, self.first + int(10 * self.frame_rate)):
-                print(1, i)
+                # print(1, i)
                 # if i != self.first:
                 #     keyboard.wait('d')
                 # imgBGR = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_RGB2BGR)
@@ -1006,7 +1006,7 @@ class LabelTool:
                     # print("Ignoring empty camera frame.")
                     break
                 if self.first <= i < self.first + int(self.frame_rate * 10):
-                    print(2, i)
+                    # print(2, i)
                     cv2.imshow('Video2 is being generated', image)
                     writer2.write(image)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
