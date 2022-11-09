@@ -11,7 +11,6 @@ from shutil import rmtree
 from PIL import Image, ImageTk
 import math
 import time
-import datetime
 import _thread
 import ctypes
 
@@ -148,7 +147,7 @@ class LabelTool:
         for i in range(42):
             self.entry_content[i].trace_variable("w", self.callback_entry)
         self.index.trace('w', self.callback_index)
-        self.after_id = self.panel.after(650, self.focus_on_current_index)
+        self.after_id = self.panel.after(600, self.focus_on_current_index)
 
         # 设置布局
         self.layout()
@@ -692,7 +691,7 @@ class LabelTool:
             self.PorN.set(0)
 
             # 设置状态
-            if 2 < self.current < self.frame_count - 2:
+            if 2 < self.current < self.frame_count - 3:
                 pass
             elif self.current == 0:
                 self.rb3[0].config(state=tk.DISABLED)
@@ -788,7 +787,7 @@ class LabelTool:
             else:
                 self.entry_content[2 * self.index.get()].set(self.entry_content[2 * self.index.get()].get())
                 self.show = False
-            self.after_id = self.frame.after(650, self.focus_on_current_index)
+            self.after_id = self.frame.after(600, self.focus_on_current_index)
         else:
             self.frame.after_cancel(self.after_id)
         # print(datetime.datetime.now(), self.after_id)
@@ -972,46 +971,52 @@ class LabelTool:
                          label=mlabel)
         with open(name + ".json", "w") as file:
             json.dump(json_file, file)
-        print("write json file success!")
+        print("write json file successfully!")
         return True
 
-    def generate_video(self):
-        # 生成裁剪后的视频 1
-        outpath = self.video_path.get() + '/1/' + self.filename + '.mp4'
-        dim = (self.original_width, self.original_height)
-        writer = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
-        # print(path, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
-        for i in range(self.first, self.first + int(10 * self.frame_rate)):
-            # print(1, i)
-            # if i != self.first:
-            #     keyboard.wait('d')
-            # imgBGR = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_RGB2BGR)
-            imgRGB = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_BGR2RGB)
-            # cv2.imshow('BGR', imgBGR)
-            cv2.imshow('Video1 is being generated', imgRGB)
-            writer.write(imgRGB)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        cv2.destroyAllWindows()
-
-        # 生成裁剪后的视频 2
-        cap = cv2.VideoCapture(self.videoPath)
-        outpath = self.video_path.get() + '/2/' + self.filename + '.mp4'
-        writer2 = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
-        i = 1
-        while cap.isOpened():
-            success, image = cap.read()
-            if not success:
-                # print("Ignoring empty camera frame.")
-                break
-            if self.first <= i < self.first + int(self.frame_rate * 10):
-                # print(2, i)
-                cv2.imshow('Video2 is being generated', image)
-                writer2.write(image)
+    def generate_video(self, gType):
+        if gType == 1: # 生成裁剪后的视频 1
+            outpath = self.video_path.get() + '/1/' + self.filename + '.mp4'
+            dim = (self.original_width, self.original_height)
+            writer = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
+            # print(path, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
+            for i in range(self.first, self.first + int(10 * self.frame_rate)):
+                print(1, i)
+                # if i != self.first:
+                #     keyboard.wait('d')
+                # imgBGR = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_RGB2BGR)
+                imgRGB = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_BGR2RGB)
+                # cv2.imshow('BGR', imgBGR)
+                cv2.imshow('Video1 is being generated', imgRGB)
+                writer.write(imgRGB)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-            i += 1
-        cv2.destroyAllWindows()
+            cv2.destroyWindow('Video1 is being generated')
+            print('generate video 1 successfully!')
+
+        elif gType == 2:  # 生成裁剪后的视频 2
+            cap = cv2.VideoCapture(self.videoPath)
+            outpath = self.video_path.get() + '/2/' + self.filename + '.mp4'
+            dim = (self.original_width, self.original_height)
+            writer2 = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
+            i = 1
+            while cap.isOpened():
+                success, image = cap.read()
+                if not success:
+                    # print("Ignoring empty camera frame.")
+                    break
+                if self.first <= i < self.first + int(self.frame_rate * 10):
+                    print(2, i)
+                    cv2.imshow('Video2 is being generated', image)
+                    writer2.write(image)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                i += 1
+            cv2.destroyWindow('Video2 is being generated')
+            print('generate video 2 successfully!')
+        else:
+            return
+
 
     def save_file(self):
         if self.start:
@@ -1027,7 +1032,11 @@ class LabelTool:
                     if not self.write_json():
                         return
                     # 生成十秒视频
-                    self.generate_video()
+                    try:
+                        _thread.start_new_thread(self.generate_video, (1, ))
+                        _thread.start_new_thread(self.generate_video, (2, ))
+                    except:
+                        tk.messagebox.showerror('错误', '启动生成视频的线程失败')
 
                 # 检查状态
                 elif self.work_state_ == 1:
@@ -1041,11 +1050,15 @@ class LabelTool:
                     if self.is_raw_video == 'yes':
                         if self.first != data['original_index']:
                             # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
-                            self.generate_video()
+                            try:
+                                _thread.start_new_thread(self.generate_video, (1,))
+                                _thread.start_new_thread(self.generate_video, (2,))
+                            except:
+                                tk.messagebox.showerror('错误', '启动生成视频的线程失败')
 
                 # self.calculate_gr_count()
                 self.reset()
-                tk.messagebox.showinfo("提示", "该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦")
+                tk.messagebox.showinfo("提示", "json写入成功，请等待视频生成完毕后，点击选择视频按钮，处理下一个视频，辛苦啦")
 
             else:
                 tk.messagebox.showwarning("提示", "还没到最后一帧~")
@@ -1191,7 +1204,7 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
-        self.after_id = self.panel.after(650, self.focus_on_current_index)
+        self.after_id = self.panel.after(600, self.focus_on_current_index)
         self.load_image()
 
     def process_by_mediapipe(self):
@@ -1395,7 +1408,7 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
-        self.after_id = self.frame.after(650, self.focus_on_current_index)
+        self.after_id = self.frame.after(600, self.focus_on_current_index)
         self.load_image()
 
 
