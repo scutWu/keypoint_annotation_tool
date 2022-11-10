@@ -13,8 +13,6 @@ import math
 import time
 import _thread
 import ctypes
-
-
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
 # import keyboard
@@ -56,7 +54,7 @@ class LabelTool:
         self.step.set(4)
         self.gr_label = []
         self.keypoint_data_new = []
-        # self.img = []  # 缓存每一帧图片，内存换时间
+        self.img = []  # 缓存每一帧图片，内存换时间
         self.show = True  # true时显示当前关键点，false时不显示
 
         # radiobutton定义
@@ -665,10 +663,10 @@ class LabelTool:
             return True
 
     def load_image(self):
-        imagePath = "./video2img/" + str(self.current + 1) + '.jpg'
-        pil_image = Image.open(imagePath)
+        # imagePath = "./video2img/" + str(self.current + 1) + '.jpg'
+        # pil_image = Image.open(imagePath)
         # pil_image = Image.fromarray(self.img[self.current][..., ::-1])  # bgr转rgb的第二种方法，不调用opencv接口
-        # pil_image = Image.fromarray(self.img[self.current])  #bgr转rgb的第一种方法：需要调用opencv2接口，在函数process_by_mediapipe里
+        pil_image = Image.fromarray(self.img[self.current])  # bgr转rgb的第一种方法：需要调用opencv2接口
         self.tkimg = ImageTk.PhotoImage(pil_image)
         self.panel.create_image(2, 2, image=self.tkimg, anchor="nw")
         self.set_entry_content()
@@ -888,7 +886,18 @@ class LabelTool:
             self.cb5_value[i].set(0)
         self.bt5.config(text='保存输出文件和视频')
         self.gr_label = []
-        # self.img = []
+        self.img = []
+
+    def jump_to(self, index_):
+        if self.start:
+            if not 0 < index_ <= self.frame_count:
+                tk.messagebox.showwarning('提示', '请输入范围内的帧序号')
+                return
+            if not self.process[self.current]:
+                if not self.save_coordinate():
+                    return
+            self.current = index_ - 1
+            self.load_image()
 
     def next_image(self):
         if self.start:
@@ -907,15 +916,29 @@ class LabelTool:
             tk.messagebox.showwarning("提示", "先点击选择视频~")
 
     def check(self):
+        # 检查是否选择了十秒视频起始帧
         if self.cb3_value.get() == 0:
-            tk.messagebox.showwarning('提示', '还未选择十秒视频的起始帧')
+            jump = tk.messagebox.askquestion('保存失败', '还未选择十秒视频的起始帧，是否跳到第1帧')
+            if jump == 'yes':
+                self.jump_to(1)
             return False
+        # 检查是否过一遍视频
+        for i in range(self.first - 1, self.first + 10 * int(self.frame_rate) - 1):
+            if not self.process[i]:
+                jump = tk.messagebox.askquestion('保存失败', '第' + str(i + 1) + '帧未处理，是否跳到第' + str(i + 1) + '帧')
+                if jump == 'yes':
+                    self.jump_to(i + 1)
+                return False
+        # 检查是否标注了错误的伸掌（握拳）
         flag = 0  # 1张开，2握拳
         for i in range(self.first - 1, self.first + int(10 * self.frame_rate) - 1):
             if self.keypoint_data_new[i][0] != 0:
                 if self.keypoint_data_new[i][0] == flag:
-                    tk.messagebox.showwarning('警告', '在第 ' + str(self.gr_label[-1][0]) + ' 帧和第 '
-                                              + str(i + 1) + ' 帧标注了连续的伸掌（握拳），请修正后再点击保存按钮')
+                    jump = tk.messagebox.askquestion('保存失败', '在第 ' + str(self.gr_label[-1][0]) + ' 帧和第 ' +
+                                                     str(i + 1) + ' 帧标注了连续的伸掌（握拳），是否跳到第' +
+                                                     str(self.gr_label[-1][0]) + '帧')
+                    if jump == 'yes':
+                        self.jump_to(self.gr_label[-1][0])
                     return False
                 else:
                     self.gr_label.append([i + 1, self.keypoint_data_new[i][0]])  # 第一项是帧序号，第二项是张开、握紧label
@@ -1017,51 +1040,46 @@ class LabelTool:
         else:
             return
 
-
     def save_file(self):
         if self.start:
-            if self.current + 1 >= self.first + int(10 * self.frame_rate) - 1:
-                if not self.save_coordinate():
-                    return
-                if not self.check():
-                    return
+            if not self.save_coordinate():
+                return
+            if not self.check():
+                return
 
-                # 标注状态
-                if self.work_state_ == 0:
-                    # 写入json文件
+            # 标注状态
+            if self.work_state_ == 0:
+                # 写入json文件
+                if not self.write_json():
+                    return
+                # 生成十秒视频
+                try:
+                    _thread.start_new_thread(self.generate_video, (1, ))
+                    _thread.start_new_thread(self.generate_video, (2, ))
+                except:
+                    tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+
+            # 检查状态
+            elif self.work_state_ == 1:
+                with open(self.path_to_json, 'r') as file:
+                    data = json.load(file)
+                need_new_json = tk.messagebox.askquestion('', '是否生成新的json文件？如果目录下有同名文件，可能会覆盖原始文件')
+                if need_new_json == 'yes':
                     if not self.write_json():
                         return
-                    # 生成十秒视频
-                    try:
-                        _thread.start_new_thread(self.generate_video, (1, ))
-                        _thread.start_new_thread(self.generate_video, (2, ))
-                    except:
-                        tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                # 如果更改了十秒视频起始帧，则生成新的视频
+                if self.is_raw_video == 'yes':
+                    if self.first != data['original_index']:
+                        # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
+                        try:
+                            _thread.start_new_thread(self.generate_video, (1,))
+                            _thread.start_new_thread(self.generate_video, (2,))
+                        except:
+                            tk.messagebox.showerror('错误', '启动生成视频的线程失败')
 
-                # 检查状态
-                elif self.work_state_ == 1:
-                    with open(self.path_to_json, 'r') as file:
-                        data = json.load(file)
-                    need_new_json = tk.messagebox.askquestion('', '是否生成新的json文件？如果目录下有同名文件，可能会覆盖原始文件')
-                    if need_new_json == 'yes':
-                        if not self.write_json():
-                            return
-                    # 如果更改了十秒视频起始帧，则生成新的视频
-                    if self.is_raw_video == 'yes':
-                        if self.first != data['original_index']:
-                            # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
-                            try:
-                                _thread.start_new_thread(self.generate_video, (1,))
-                                _thread.start_new_thread(self.generate_video, (2,))
-                            except:
-                                tk.messagebox.showerror('错误', '启动生成视频的线程失败')
-
-                # self.calculate_gr_count()
-                self.reset()
-                tk.messagebox.showinfo("提示", "json写入成功，请等待视频生成完毕后，点击选择视频按钮，处理下一个视频，辛苦啦")
-
-            else:
-                tk.messagebox.showwarning("提示", "还没到最后一帧~")
+            # self.calculate_gr_count()
+            self.reset()
+            tk.messagebox.showinfo("提示", "json写入成功，请等待视频生成完毕后，点击选择视频按钮，处理下一个视频，辛苦啦")
         else:
             tk.messagebox.showwarning("提示", "先点击选择视频")
 
@@ -1103,9 +1121,6 @@ class LabelTool:
         self.frame_rate = self.get_frame_rate(self.frame_rate)
 
         if self.is_raw_video == 'yes':
-            self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
-            if self.ddl < 1:
-                tk.messagebox.showwarning('提示', '视频总帧数不够')
             self.first = data['original_index']  # first与current的对应关系：first领先current 1
             self.keypoint_data = [[0.0 for j in range(43)] for i in range(self.frame_count)]  # 原始关键点数据
             self.process = [False for i in range(self.frame_count)]
@@ -1168,11 +1183,11 @@ class LabelTool:
                 self.cb5_value[complex_dict[item]].set(1)
 
         # 创建video2img文件夹
-        if not os.path.exists('./video2img'):
-            os.mkdir('./video2img')
-        else:
-            rmtree('./video2img')
-            os.mkdir('./video2img')
+        # if not os.path.exists('./video2img'):
+        #     os.mkdir('./video2img')
+        # else:
+        #     rmtree('./video2img')
+        #     os.mkdir('./video2img')
 
         # opencv处理视频
         i = 0
@@ -1184,11 +1199,11 @@ class LabelTool:
             dim = (self.image_width, self.image_height)
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-                cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
-                # self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
+                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
+                self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
-                cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
-                # self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
+                self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             if self.is_raw_video == 'yes':
                 cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
             if i == 0:
@@ -1200,6 +1215,19 @@ class LabelTool:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             i += 1
+
+        if len(self.img) != self.frame_count:
+            if not self.is_raw_video:
+                tk.messagebox.showwarning('警告', '生成视频的总帧数有丢失')
+                self.reset()
+                return
+            else:
+                self.frame_count = len(self.img)
+
+        if self.is_raw_video == 'yes':
+            self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
+            if self.ddl < 1:
+                tk.messagebox.showwarning('提示', '视频总帧数不够')
 
         cv2.destroyAllWindows()
         cap.release()
@@ -1220,13 +1248,9 @@ class LabelTool:
 
         cap = cv2.VideoCapture(self.videoPath)
         # print(type(path), path)
-        self.frame_count = int(cap.get(7))  # 视频总帧数
+        self.frame_count = int(cap.get(7))  # 视频总帧数. opencv似乎会丢掉重复的帧，因此该值不一定准确
         self.frame_rate = cap.get(5)
         self.frame_rate = self.get_frame_rate(self.frame_rate)
-        self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
-        if self.ddl < 1:
-            tk.messagebox.showwarning('提示', '视频总帧数不够')
-            # return
         self.label9.config(text="帧率：" + str(self.frame_rate))
         self.keypoint_data = [[0.0 for j in range(43)] for i in range(self.frame_count)]  # 原始关键点数据
         self.process = [False for i in range(self.frame_count)]
@@ -1234,11 +1258,11 @@ class LabelTool:
         i = 0
 
         # 创建video2img文件夹
-        if not os.path.exists('./video2img'):
-            os.mkdir('./video2img')
-        else:
-            rmtree('./video2img')
-            os.mkdir('./video2img')
+        # if not os.path.exists('./video2img'):
+        #     os.mkdir('./video2img')
+        # else:
+        #     rmtree('./video2img')
+        #     os.mkdir('./video2img')
 
         # 创建img2video文件夹
         if not os.path.exists('./img2video'):
@@ -1247,7 +1271,7 @@ class LabelTool:
             rmtree('./img2video')
             os.mkdir('./img2video')
 
-        while cap.isOpened():
+        while True:
             # if i != 0:
             #     keyboard.wait('d')
             success, image = cap.read()
@@ -1260,11 +1284,11 @@ class LabelTool:
             dim = (self.image_width, self.image_height)
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-                cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
-                # self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
+                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
+                self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
-                cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
-                # self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
+                self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
             cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
 
@@ -1386,6 +1410,12 @@ class LabelTool:
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+
+        if len(self.img) != self.frame_count:  # 读取视频丢帧时
+            self.frame_count = len(self.img)
+        self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
+        if self.ddl < 1:
+            tk.messagebox.showwarning('提示', '视频总帧数不够')
 
         # 将原始关键点数据深拷贝至
         for i in range(self.frame_count):
