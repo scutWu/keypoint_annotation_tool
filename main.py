@@ -923,7 +923,7 @@ class LabelTool:
                 self.jump_to(1)
             return False
         # 检查是否过一遍视频
-        for i in range(self.first - 1, self.first + 10 * int(self.frame_rate) - 1):
+        for i in range(self.first - 1, self.first + int(10 * self.frame_rate) - 1):
             if not self.process[i]:
                 jump = tk.messagebox.askquestion('保存失败', '第' + str(i + 1) + '帧未处理，是否跳到第' + str(i + 1) + '帧')
                 if jump == 'yes':
