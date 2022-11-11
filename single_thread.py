@@ -11,7 +11,6 @@ from shutil import rmtree
 from PIL import Image, ImageTk
 import math
 import time
-import _thread
 import ctypes
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
@@ -597,10 +596,7 @@ class LabelTool:
             if path_ != "":
                 self.reset()
                 self.videoPath = path_
-                try:
-                    _thread.start_new_thread(self.process_by_mediapipe, ())
-                except:
-                    tk.messagebox.showerror('错误', '无法启动线程')
+                self.process_by_mediapipe()
                 self.work_state_ = 0
                 self.label8.config(text='该帧无landmark')
 
@@ -624,10 +620,7 @@ class LabelTool:
             if video_name == json_name.split('_')[0]:
                 self.reset()
                 self.videoPath = path_to_video
-                try:
-                    _thread.start_new_thread(self.process_with_annotationInfo, ())
-                except:
-                    tk.messagebox.showerror('错误', '无法启动线程')
+                self.process_with_annotationInfo()
                 self.work_state_ = 1
                 self.label8.config(text='该帧在原json中被舍弃')
             else:
@@ -1058,11 +1051,8 @@ class LabelTool:
                 if not self.write_json():
                     return
                 # 生成十秒视频
-                try:
-                    _thread.start_new_thread(self.generate_video, (1, ))
-                    _thread.start_new_thread(self.generate_video, (2, ))
-                except:
-                    tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                self.generate_video(1)
+                self.generate_video(2)
 
             # 检查状态
             elif self.work_state_ == 1:
@@ -1076,11 +1066,8 @@ class LabelTool:
                 if self.is_raw_video == 'yes':
                     if self.first != data['original_index']:
                         # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
-                        try:
-                            _thread.start_new_thread(self.generate_video, (1,))
-                            _thread.start_new_thread(self.generate_video, (2,))
-                        except:
-                            tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                        self.generate_video(1)
+                        self.generate_video(2)
 
             # self.calculate_gr_count()
             self.reset()
