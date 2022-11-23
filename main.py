@@ -12,6 +12,7 @@ from PIL import Image, ImageTk
 import math
 import time
 import _thread
+import threading
 import ctypes
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
@@ -54,7 +55,8 @@ class LabelTool:
         self.step.set(4)
         self.gr_label = []
         self.keypoint_data_new = []
-        self.img = []  # 缓存每一帧图片，内存换时间
+        self.process = []
+        self.img = []  # 缓存每一帧图片
         self.show = True  # true时显示当前关键点，false时不显示
 
         # radiobutton定义
@@ -131,25 +133,87 @@ class LabelTool:
         # self.parent_canvas.config(yscrollcommand=self.sb.set)
         # self.parent_canvas.create_window(0, 0, window=self.frame)
 
-        # 输入输出路径定义、创建默认文件夹和path.json
+        # 输入输出路径等的定义、创建默认文件夹和config.json
         self.output_path = tk.StringVar()
         self.input_path = tk.StringVar()
         self.video_path = tk.StringVar()
-        self.create_init_folder()
+        self.multi_thread = tk.BooleanVar()
+        self.into_memory = tk.BooleanVar()  # 帧缓存是否写入内存
+        self.into_memory_ = True  # 保证状态一致
+        self.highlight = tk.IntVar()  # 关键点突出表现形式：0表示关闭、1表示划线、2表示闪烁。初始为0
+        self.read_config_file()
 
         # 绑定函数
         self.panel.bind("<Button-1>", self.on_click)
         self.frame.bind("<KeyPress>", self.on_keyboard)
         self.frame.bind("<Button-1>", self.focus_on_frame)
+        self.frame.bind("<Destroy>", self.when_frame_destroy)
         self.frame.focus_set()
         # entry绑定回调函数
         for i in range(42):
             self.entry_content[i].trace_variable("w", self.callback_entry)
         self.index.trace('w', self.callback_index)
-        self.after_id = self.panel.after(600, self.focus_on_current_index)
+        self.multi_thread.trace('w', self.callback_multi_thread)
+        self.highlight.trace('w', self.callback_highlight)
+        self.into_memory.trace('w', self.callback_into_memory)
+        if self.highlight.get() == 2:
+            self.after_id = self.panel.after(600, self.flashing)
 
         # 设置布局
         self.layout()
+
+        # self.recover()
+
+    def recover(self):
+        if os.path.exists('./temp.json'):
+            recover = tk.messagebox.askquestion('是否恢复', '检测到上次标注中途退出，是否恢复？')
+            if recover == 'yes':
+                with open('./temp.json', 'r') as file:
+                    data = json.load(file)
+                self.videoPath = data['videoPath']
+                if self.multi_thread.get():
+                    try:
+                        # _thread.start_new_thread(self.process_by_mediapipe, ())
+                        t = threading.Thread(target=self.process_by_mediapipe)
+                        t.start()
+                        t.join()
+                    except:
+                        tk.messagebox.showerror('错误', '无法启动线程')
+                else:
+                    self.process_by_mediapipe()
+                self.current = data['current']
+                for i in range(self.frame_count):
+                    self.keypoint_data_new = data['new_keypoint_data'][:]
+                complex_dict = {
+                    'a1': 0,
+                    'a2': 1,
+                    'a3': 2,
+                    'a4': 3,
+                    'b1': 4,
+                    'b2': 5,
+                    'c1': 6,
+                    'c2': 7,
+                    'd': 8,
+                    'e': 9,
+                    'f': 10
+                }
+                self.complex_type = data['complex_type'][:]
+                if len(self.complex_type) == 0:
+                    self.complex.set(0)
+                else:
+                    self.complex.set(1)
+                    for item in self.complex_type:
+                        self.cb5_value[complex_dict[item]].set(1)
+                self.process = data['process'][:]
+                self.first = data['first']
+                if self.first != 0:
+                    self.cb3_value.set(1)
+                    jieshu = self.first + int(10 * self.frame_rate) - 1
+                    self.cb3.config(text="十秒视频起始帧：" + str(self.first) + "，结束帧：" + str(jieshu))
+                else:
+                    self.cb3.config(text="十秒视频起始帧：" + "请在第 " + str(self.ddl) + ' 帧及之前标注')
+                self.label8.config(text='该帧无landmark')
+                print('recover')
 
     def layout(self):
         # entry_list（关键点坐标）、rb（关键点index）、label（关键点说明label）
@@ -235,7 +299,7 @@ class LabelTool:
         self.panel0.place(x=20, y=60, anchor="nw")  # 底层画布
         self.panel.place(x=50, y=90, anchor="nw")  # 顶层画布
 
-    def create_init_folder(self):
+    def read_config_file(self):
         if not os.path.exists('./output'):  # 初始输出文件夹
             os.mkdir('./output')
         if not os.path.exists('./processed_video'):
@@ -244,17 +308,67 @@ class LabelTool:
             os.mkdir('./processed_video/1')
         if not os.path.exists('./processed_video/2'):
             os.mkdir('./processed_video/2')
-        if not os.path.exists('./path.json'):
-            with open('./path.json', 'w') as file:
+        if not os.path.exists('./temp'):
+            os.mkdir('./temp')
+        if os.path.exists('./path.json'):
+            os.remove('./path.json')
+        if os.path.exists('./video2image'):
+            rmtree('./video2img')
+        if os.path.exists('./img2video'):
+            rmtree('./img2video')
+        if not os.path.exists('./config.json'):
+            with open('./config.json', 'w') as file:
                 path = os.getcwd()
                 path = path.replace('\\', '/')
-                json_file = dict(input_path=".", output_path=path + '/output', video_path=path + '/processed_video')
+                json_file = dict(input_path=".", output_path=path + '/output', video_path=path + '/processed_video',
+                                 multi_thread=True, into_memory=True, highlight=0, running_instance=[])
                 json.dump(json_file, file)
-        with open('./path.json', 'r') as file:
+        with open('./config.json', 'r') as file:
             json_file = json.load(file)
             self.output_path.set(json_file['output_path'])
             self.input_path.set(json_file['input_path'])
             self.video_path.set(json_file['video_path'])
+            try:
+                self.multi_thread.set(json_file['multi_thread'])
+            except KeyError:
+                self.multi_thread.set(True)
+            try:
+                self.into_memory.set(json_file['into_memory'])
+            except KeyError:
+                self.into_memory.set(True)
+            try:
+                self.highlight.set(json_file['highlight'])
+            except KeyError:
+                self.highlight.set(0)
+
+    def set_into_memory_(self):
+        if not self.start:
+            self.into_memory_ = self.into_memory.get()
+
+    def when_frame_destroy(self, event):
+        # if os.path.exists('./temp.json'):
+        #     os.remove('./temp.json')
+        # if self.work_state_ == 0:
+        #     if self.start:
+        #         data = dict(videoPath=self.videoPath, current=self.current, new_keypoint_data=self.keypoint_data_new,
+        #                     complex_type=self.complex_type, process=self.process, first=self.first)
+        #         with open('./temp.json', 'w') as file:
+        #             json.dump(data, file)
+        #         print('dump success')
+        self.config_running_instance('remove')
+        self.free_temp()
+
+    def free_temp(self):
+        with open('config.json', 'r') as file:
+            data = json.load(file)
+            try:
+                instances = data['running_instance']
+            except KeyError:
+                instances = []
+            for instance in os.listdir('./temp'):
+                if not instance[9:] in instances:
+                    rmtree('./temp/' + instance)
+                    # print('rmtree ./temp/{}'.format(instance))
 
     def on_rb2(self):
         if self.work_state.get() == 0:
@@ -295,7 +409,7 @@ class LabelTool:
     def focus_on_frame(self, event):
         self.frame.focus_set()
 
-    def when_destroy(self, event):
+    def when_com_destroy(self, event):
         self.cb1.config(state=tk.ACTIVE)
         # print("111", event)
         value = ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'c1', 'c2', 'd', 'e', 'f']
@@ -322,7 +436,7 @@ class LabelTool:
         cb5 = [tk.Checkbutton(top, text=text[i], variable=self.cb5_value[i], font=1) for i in range(11)]
         label1 = tk.Label(top, text=label_text[0], font=1)
         label1.place(x=10, y=10)
-        label1.bind('<Destroy>', self.when_destroy)
+        label1.bind('<Destroy>', self.when_com_destroy)
         for i in range(4):
             cb5[i].place(x=40, y=40 + 30 * i)
         tk.Label(top, text=label_text[1], font=1).place(x=10, y=170)
@@ -346,9 +460,22 @@ class LabelTool:
         tk.Button(top, text='更改默认视频输出路径', command=self.change_video_path).place(x=20, y=108, width=140, height=31)
         tk.Entry(top, textvariable=self.video_path, state=tk.DISABLED).place(x=180, y=108, width=420, height=31)
         tk.Label(top, text='关键点移动步长：', font=1).place(x=20, y=158)
-        rb = [tk.Radiobutton(top, text=str(i), value=i, variable=self.step) for i in range(2, 9)]
+        rb1 = [tk.Radiobutton(top, text=str(i), value=i, variable=self.step, font=1) for i in range(2, 9)]
         for i in range(7):
-            rb[i].place(x=180 + 45 * i, y=158)
+            rb1[i].place(x=180 + 45 * i, y=158)
+        tk.Label(top, text='工作模式：', font=1).place(x=102, y=213, anchor='center')
+        tk.Checkbutton(top, text='多线程处理视频', onvalue=True, offvalue=False, variable=self.multi_thread, font=1).place(x=180, y=198)
+        tk.Label(top, text='突出选中关键点：', font=1).place(x=102, y=255, anchor='center')
+        text = ['关闭', '划线', '闪烁']
+        rb2 = [tk.Radiobutton(top, text=text[i], value=i, variable=self.highlight, font=1) for i in range(3)]
+        for i in range(3):
+            rb2[i].place(x=180 + 75 * i, y=242)
+        tk.Label(top, text='如何缓存图像帧：', font=1).place(x=102, y=297, anchor='center')
+        text = ['内存', '磁盘']
+        value = [True, False]
+        rb3 = [tk.Radiobutton(top, text=text[i], value=value[i], variable=self.into_memory, font=1) for i in range(2)]
+        for i in range(2):
+            rb3[i].place(x=180 + 75 * i, y=284)
 
     def clear_rb(self):
         # self.rb[self.index.get()].deselect()
@@ -358,6 +485,10 @@ class LabelTool:
     def click_cb3(self):
         if self.start:
             if self.cb3_value.get() == 1:
+                if self.current + 1 > self.ddl:
+                    ans = tk.messagebox.askquestion('', '是否取消当前十秒视频起始帧?')
+                    if ans == 'no':
+                        return
                 self.cb3.deselect()
             elif self.cb3_value.get() == 0:
                 self.cb3.select()
@@ -563,23 +694,28 @@ class LabelTool:
             elif self.gr.get() == 0:
                 self.label10.config(text="最近标注第" + str(self.current + 1) + "帧为过渡")
 
-    def write_path_file(self):
-        with open('./path.json', 'w') as file:
+    def write_config_file(self):
+        with open('./config.json', 'r') as file:
+            data = json.load(file)
+        with open('./config.json',  'w') as file:
+            instance = data['running_instance']
             json_file = dict(input_path=self.input_path.get(), output_path=self.output_path.get(),
-                             video_path=self.video_path.get())
+                             video_path=self.video_path.get(), multi_thread=self.multi_thread.get(),
+                             highlight=self.highlight.get(), into_memory=self.into_memory.get(),
+                             running_instance=instance)
             json.dump(json_file, file)
 
     def change_output_path(self):
         path = tk.filedialog.askdirectory(initialdir=self.output_path.get())
         if path != '':
             self.output_path.set(path)
-            self.write_path_file()
+            self.write_config_file()
 
     def change_video_path(self):
         path = tk.filedialog.askdirectory(initialdir=self.video_path.get())
         if path != '':
             self.video_path.set(path)
-            self.write_path_file()
+            self.write_config_file()
             if not os.path.exists(self.video_path.get() + '/1'):
                 os.mkdir(self.video_path.get() + '/1')
             if not os.path.exists(self.video_path.get() + '/2'):
@@ -589,7 +725,7 @@ class LabelTool:
         path = tk.filedialog.askdirectory(initialdir=self.input_path.get())
         if path != '':
             self.input_path.set(path)
-            self.write_path_file()
+            self.write_config_file()
 
     def select_path(self):
         if self.work_state.get() == 0:  # 标注
@@ -597,12 +733,18 @@ class LabelTool:
             if path_ != "":
                 self.reset()
                 self.videoPath = path_
-                try:
-                    _thread.start_new_thread(self.process_by_mediapipe, ())
-                except:
-                    tk.messagebox.showerror('错误', '无法启动线程')
+                self.set_filename()
+                if self.multi_thread.get():
+                    try:
+                        _thread.start_new_thread(self.process_by_mediapipe, ())
+                    except:
+                        tk.messagebox.showerror('错误', '无法启动线程')
+                else:
+                    self.process_by_mediapipe()
                 self.work_state_ = 0
                 self.label8.config(text='该帧无landmark')
+            else:
+                return
 
         elif self.work_state.get() == 1:  # 检查
             self.is_raw_video = tkinter.messagebox.askquestion('输入视频类型', '选择的是原始视频（非裁剪后的视频）吗？')  # 该变量仅在检查状态下生效
@@ -624,20 +766,55 @@ class LabelTool:
             if video_name == json_name.split('_')[0]:
                 self.reset()
                 self.videoPath = path_to_video
-                try:
-                    _thread.start_new_thread(self.process_with_annotationInfo, ())
-                except:
-                    tk.messagebox.showerror('错误', '无法启动线程')
+                self.set_filename()
+                if self.multi_thread.get():
+                    try:
+                        _thread.start_new_thread(self.process_with_annotationInfo, ())
+                    except:
+                        tk.messagebox.showerror('错误', '无法启动线程')
+                else:
+                    self.process_with_annotationInfo()
                 self.work_state_ = 1
                 self.label8.config(text='该帧在原json中被舍弃')
             else:
                 tk.messagebox.showwarning('提示', '所选视频与json不对应')
+                return
+
+        self.config_running_instance('append')
+
+    def config_running_instance(self, command):
+        with open('./config.json', 'r') as file:
+            data = json.load(file)
+        with open('./config.json', 'w') as file:
+            try:
+                instance = data['running_instance']
+                if command == 'append':
+                    instance.append(self.filename)
+                elif command == 'remove':
+                    try:
+                        instance.remove(self.filename)
+                    except ValueError:
+                        pass
+                elif command == 'clear':
+                    instance = []
+            except KeyError:
+                if command == 'append':
+                    instance = [self.filename]
+                else:
+                    instance = []
+            data['running_instance'] = instance
+            json.dump(data, file)
+
+    def set_filename(self):
+        path, name = os.path.split(self.videoPath)
+        self.filename, suffix = os.path.splitext(name)
+        self.label2.config(text="视频编号：" + self.filename)
 
     def on_cb(self):
         if self.cb_content.get() == 1:
             self.coordinate_line()
         else:
-            self.panel.delete("line")
+            self.panel.delete("coord_line")
             self.panel0.delete("coord")
 
     def reset_coordinate(self):
@@ -666,10 +843,12 @@ class LabelTool:
             return True
 
     def load_image(self):
-        # imagePath = "./video2img/" + str(self.current + 1) + '.jpg'
-        # pil_image = Image.open(imagePath)
-        # pil_image = Image.fromarray(self.img[self.current][..., ::-1])  # bgr转rgb的第二种方法，不调用opencv接口
-        pil_image = Image.fromarray(self.img[self.current])  # bgr转rgb的第一种方法：需要调用opencv2接口
+        if self.into_memory_:  # 写入内存
+            pil_image = Image.fromarray(self.img[self.current])  # bgr转rgb的第一种方法：需要调用opencv2接口
+            # pil_image = Image.fromarray(self.img[self.current][..., ::-1])  # bgr转rgb的第二种方法，不调用opencv接口
+        else:
+            imagePath = './temp/video2img' + self.filename + '/' + str(self.current + 1) + '.jpg'
+            pil_image = Image.open(imagePath)
         self.tkimg = ImageTk.PhotoImage(pil_image)
         self.panel.create_image(2, 2, image=self.tkimg, anchor="nw")
         self.set_entry_content()
@@ -694,6 +873,8 @@ class LabelTool:
         elif self.current == 0:
             self.rb3[1].config(state=tk.DISABLED)
             self.rb3[2].config(state=tk.DISABLED)
+            self.rb3[4].config(state=tk.ACTIVE)
+            self.rb3[5].config(state=tk.ACTIVE)
         elif self.current == 1:
             self.rb3[1].config(state=tk.DISABLED)
             self.rb3[2].config(state=tk.ACTIVE)
@@ -741,6 +922,33 @@ class LabelTool:
                 else:
                     self.entry_content[i].set(str(int(self.keypoint_data_new[self.current][i + 1] * self.image_height)))
 
+    def callback_multi_thread(self, *args):
+        self.write_config_file()
+
+    def callback_highlight(self, *args):
+        self.write_config_file()
+        if self.start:
+            if self.highlight.get() == 2:
+                self.panel.delete('line')
+                self.after_id = self.frame.after(600, self.flashing)
+            elif self.highlight.get() == 1:
+                try:
+                    self.frame.after_cancel(self.after_id)
+                except AttributeError:
+                    pass
+            else:
+                self.panel.delete('line')
+                try:
+                    self.frame.after_cancel(self.after_id)
+                except AttributeError:
+                    pass
+            for i in range(21):
+                self.new_show_coordinate(i)
+
+    def callback_into_memory(self, *args):
+        self.write_config_file()
+        self.set_into_memory_()
+
     def callback_index(self, *args):
         if self.start:
             for i in range(21):
@@ -780,17 +988,24 @@ class LabelTool:
                                fill=color[finger], tags='a' + str(index_))
         self.panel.create_text(temp[0] + self.rad + 3.0, temp[1], text=str(index_ + offset[finger]),
                                tags='a' + str(index_))
-        self.panel.tag_raise("line")
+        self.panel.tag_raise("coord_line")
+        if self.highlight.get() == 1 and index_ == self.index.get():
+            self.panel.delete('line')
+            # self.panel.create_line(temp[0] - 3.0, temp[1] + 6.0, temp[0] + 3.0, temp[1] + 6.0, fill=color[finger],
+            #                        tags='line')
+            self.panel.create_rectangle(temp[0] - 3.0, temp[1] + 6.0, temp[0] + 3.0, temp[1] + 7.0,
+                                        fill=color[finger], outline=color[finger], tags='line')
 
-    def focus_on_current_index(self):
-        if self.start:
+    def flashing(self):
+        # print('dd')
+        if self.start and self.highlight.get() == 2:
             if not self.show:
                 self.panel.delete('a' + str(self.index.get()))
                 self.show = True
             else:
                 self.entry_content[2 * self.index.get()].set(self.entry_content[2 * self.index.get()].get())
                 self.show = False
-            self.after_id = self.frame.after(600, self.focus_on_current_index)
+            self.after_id = self.frame.after(600, self.flashing)
         else:
             self.frame.after_cancel(self.after_id)
         # print(datetime.datetime.now(), self.after_id)
@@ -843,16 +1058,15 @@ class LabelTool:
             self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 16),
                                    tags="label")
 
-        self.panel.tag_raise("line")
+        self.panel.tag_raise("coord_line")
 
     def coordinate_line(self):
         # 网格线
         for i in range(7):
-            self.panel.create_line(60 * i, 0, 60 * i, 680, fill="grey", tags="line")
-        # self.panel.create_line(360, 0, 360, 680, fill="grey", tags="line")
+            self.panel.create_line(60 * i, 0, 60 * i, 680, fill="grey", tags="coord_line")
         for i in range(14):
-            self.panel.create_line(0, 50 * i, 360, 50 * i, fill="grey", tags="line")
-        self.panel.create_line(0, 680, 360, 680, tags="line")
+            self.panel.create_line(0, 50 * i, 360, 50 * i, fill="grey", tags="coord_line")
+        self.panel.create_line(0, 680, 360, 680, tags="coord_line")
         self.panel0.create_line(29, 29, 409, 29, tags="coord", arrow=tk.LAST)
         self.panel0.create_line(29, 29, 29, 729, tags="coord", arrow=tk.LAST)
 
@@ -867,6 +1081,7 @@ class LabelTool:
     def reset(self):
         self.panel.delete("all")
         self.start = False
+        self.set_into_memory_()
         self.current = 0
         self.keypoint_data_new = []
         for i in range(42):
@@ -879,6 +1094,8 @@ class LabelTool:
         self.label10.config(text="")
         self.label8.place_forget()
         self.detect = 'all'
+        self.config_running_instance('remove')
+        self.filename = ''
         self.fail_frame = []
         self.cb1.deselect()
         # self.cb2.deselect()
@@ -892,6 +1109,10 @@ class LabelTool:
         self.bt5.config(text='保存输出文件和视频')
         self.gr_label = []
         self.img = []
+        try:
+            self.frame.after_cancel(self.after_id)
+        except AttributeError:
+            pass
 
     def jump_to(self, index_):
         if self.start:
@@ -1002,9 +1223,9 @@ class LabelTool:
         print("write json file successfully!")
         return True
 
-    def generate_video(self, gType):
-        if gType == 1: # 生成裁剪后的视频 1
-            outpath = self.video_path.get() + '/1/' + self.filename + '.mp4'
+    def generate_video(self, gType, filename):
+        if gType == 1:  # 生成裁剪后的视频 1
+            outpath = self.video_path.get() + '/1/' + filename + '.mp4'
             dim = (self.original_width, self.original_height)
             writer = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
             # print(path, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
@@ -1012,8 +1233,8 @@ class LabelTool:
                 # print(1, i)
                 # if i != self.first:
                 #     keyboard.wait('d')
-                # imgBGR = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_RGB2BGR)
-                imgRGB = cv2.imread('./img2video/' + str(i) + '.jpg', cv2.COLOR_BGR2RGB)
+                # imgBGR = cv2.imread('./temp/img2video' + filename + '/' + str(i) + '.jpg', cv2.COLOR_RGB2BGR)
+                imgRGB = cv2.imread('./temp/img2video' + filename + '/' + str(i) + '.jpg', cv2.COLOR_BGR2RGB)
                 # cv2.imshow('BGR', imgBGR)
                 cv2.imshow('Video1 is being generated', imgRGB)
                 writer.write(imgRGB)
@@ -1024,7 +1245,7 @@ class LabelTool:
 
         elif gType == 2:  # 生成裁剪后的视频 2
             cap = cv2.VideoCapture(self.videoPath)
-            outpath = self.video_path.get() + '/2/' + self.filename + '.mp4'
+            outpath = self.video_path.get() + '/2/' + filename + '.mp4'
             dim = (self.original_width, self.original_height)
             writer2 = cv2.VideoWriter(outpath, cv2.VideoWriter_fourcc(*'mp4v'), self.frame_rate, dim)
             i = 1
@@ -1058,11 +1279,15 @@ class LabelTool:
                 if not self.write_json():
                     return
                 # 生成十秒视频
-                try:
-                    _thread.start_new_thread(self.generate_video, (1, ))
-                    _thread.start_new_thread(self.generate_video, (2, ))
-                except:
-                    tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                if self.multi_thread.get():
+                    try:
+                        _thread.start_new_thread(self.generate_video, (1, self.filename))
+                        _thread.start_new_thread(self.generate_video, (2, self.filename))
+                    except:
+                        tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                else:
+                    self.generate_video(1, self.filename)
+                    self.generate_video(2, self.filename)
 
             # 检查状态
             elif self.work_state_ == 1:
@@ -1076,15 +1301,22 @@ class LabelTool:
                 if self.is_raw_video == 'yes':
                     if self.first != data['original_index']:
                         # tk.messagebox.showinfo('提示', '标注了新的十秒视频起始帧，将生成新的视频')
-                        try:
-                            _thread.start_new_thread(self.generate_video, (1,))
-                            _thread.start_new_thread(self.generate_video, (2,))
-                        except:
-                            tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                        if self.multi_thread.get():
+                            try:
+                                _thread.start_new_thread(self.generate_video, (1,))
+                                _thread.start_new_thread(self.generate_video, (2,))
+                            except:
+                                tk.messagebox.showerror('错误', '启动生成视频的线程失败')
+                        else:
+                            self.generate_video(1)
+                            self.generate_video(2)
 
             # self.calculate_gr_count()
             self.reset()
-            tk.messagebox.showinfo("提示", "json写入成功，请等待视频生成完毕后，点击选择视频按钮，处理下一个视频，辛苦啦")
+            if self.multi_thread.get():
+                tk.messagebox.showinfo("提示", "json写入成功，请等待视频生成完毕后，点击选择视频按钮，处理下一个视频，辛苦啦")
+            else:
+                tk.messagebox.showinfo('提示', '该视频已处理完成，点击选择视频按钮，处理下一个视频，辛苦啦')
         else:
             tk.messagebox.showwarning("提示", "先点击选择视频")
 
@@ -1137,11 +1369,11 @@ class LabelTool:
                 self.exist[i] = True
 
             # 创建img2video文件夹。处理raw视频可能需要新生成视频
-            if not os.path.exists('./img2video'):
-                os.mkdir('./img2video')
+            if not os.path.exists('./temp/img2video' + self.filename):
+                os.mkdir('./temp/img2video' + self.filename)
             else:
-                rmtree('./img2video')
-                os.mkdir('./img2video')
+                rmtree('./temp/img2video' + self.filename)
+                os.mkdir('./temp/img2video' + self.filename)
         else:
             self.ddl = 1
             self.first = 1
@@ -1155,9 +1387,6 @@ class LabelTool:
             self.keypoint_data_new.append(temp)
 
         self.bt5.config(text='保存输出文件')  # 在检查状态下，除非标注了新的十秒视频起始帧，否则不生成新的视频
-        path, name = os.path.split(self.videoPath)
-        self.filename, suffix = os.path.splitext(name)
-        self.label2.config(text="视频编号：" + self.filename)
         self.label9.config(text="帧率：" + str(self.frame_rate))
         self.cb3_value.set(1)  # 十秒视频起始帧默认已标注
         jieshu = self.first + int(10 * self.frame_rate) - 1
@@ -1188,11 +1417,12 @@ class LabelTool:
                 self.cb5_value[complex_dict[item]].set(1)
 
         # 创建video2img文件夹
-        # if not os.path.exists('./video2img'):
-        #     os.mkdir('./video2img')
-        # else:
-        #     rmtree('./video2img')
-        #     os.mkdir('./video2img')
+        if not self.into_memory_:
+            if not os.path.exists('./temp/video2img' + self.filename):
+                os.mkdir('./temp/video2img' + self.filename)
+            else:
+                rmtree('./temp/video2img' + self.filename)
+                os.mkdir('./temp/video2img' + self.filename)
 
         # opencv处理视频
         i = 0
@@ -1204,13 +1434,17 @@ class LabelTool:
             dim = (self.image_width, self.image_height)
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
-                self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
+                if not self.into_memory_:
+                    cv2.imwrite('./temp/video2img' + self.filename + '/' + str(i + 1) + '.jpg', resized)
+                else:
+                    self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
-                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
-                self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                if not self.into_memory_:
+                    cv2.imwrite('./temp/video2img' + self.filename + '/' + str(i + 1) + '.jpg', image)
+                else:
+                    self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             if self.is_raw_video == 'yes':
-                cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
+                cv2.imwrite('./temp/img2video' + self.filename + '/' + str(i + 1) + '.jpg', image)
             if i == 0:
                 self.original_height, self.original_width, c = image.shape
 
@@ -1221,13 +1455,20 @@ class LabelTool:
                 break
             i += 1
 
-        if len(self.img) != self.frame_count:
-            if not self.is_raw_video:
-                tk.messagebox.showwarning('警告', '生成视频的总帧数有丢失')
-                self.reset()
-                return
-            else:
-                self.frame_count = len(self.img)
+        if self.into_memory_ and self.is_raw_video == 'yes' and self.frame_count != len(self.img):
+            self.frame_count = len(self.img)
+        elif self.into_memory_ and self.is_raw_video == 'no' and self.frame_count != len(self.img):
+            tk.messagebox.showerror('警告', '生成视频的总帧数有丢失')
+            self.reset()
+            return
+        elif not self.into_memory_ and (self.is_raw_video == 'yes' and
+                                        self.frame_count != len(os.listdir('./temp/video2img' + self.filename))):
+            self.frame_count = len(os.listdir('./temp/video2img' + self.filename))
+        elif not self.into_memory_ and (self.is_raw_video == 'no' and
+                                        self.frame_count != len(os.listdir('./temp/video2img' + self.filename))):
+            tk.messagebox.showerror('警告', '生成视频的总帧数有丢失')
+            self.reset()
+            return
 
         if self.is_raw_video == 'yes':
             self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
@@ -1237,7 +1478,8 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
-        self.after_id = self.panel.after(600, self.focus_on_current_index)
+        if self.highlight.get() == 2:
+            self.after_id = self.panel.after(600, self.flashing)
         self.load_image()
 
     def process_by_mediapipe(self):
@@ -1263,18 +1505,19 @@ class LabelTool:
         i = 0
 
         # 创建video2img文件夹
-        # if not os.path.exists('./video2img'):
-        #     os.mkdir('./video2img')
-        # else:
-        #     rmtree('./video2img')
-        #     os.mkdir('./video2img')
+        if not self.into_memory_:
+            if not os.path.exists('./temp/video2img' + self.filename):
+                os.mkdir('./temp/video2img' + self.filename)
+            else:
+                rmtree('./temp/video2img' + self.filename)
+                os.mkdir('./temp/video2img' + self.filename)
 
         # 创建img2video文件夹
-        if not os.path.exists('./img2video'):
-            os.mkdir('./img2video')
+        if not os.path.exists('./temp/img2video' + self.filename):
+            os.mkdir('./temp/img2video' + self.filename)
         else:
-            rmtree('./img2video')
-            os.mkdir('./img2video')
+            rmtree('./temp/img2video' + self.filename)
+            os.mkdir('./temp/img2video' + self.filename)
 
         while True:
             # if i != 0:
@@ -1284,29 +1527,31 @@ class LabelTool:
                 # print("Ignoring empty camera frame.")
                 break
 
-            # cv2.imwrite('./video2img/'+str(i+1)+'.jpg', image)
             # 尺寸调整为360*680
             dim = (self.image_width, self.image_height)
             if image.shape[0] != self.image_height or image.shape[1] != self.image_width:
                 resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', resized)
-                self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
+                if not self.into_memory_:
+                    cv2.imwrite('./temp/video2img' + self.filename + '/' + str(i + 1) + '.jpg', resized)
+                else:
+                    self.img.append(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
             else:
-                # cv2.imwrite('./video2img/' + str(i + 1) + '.jpg', image)
-                self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                if not self.into_memory_:
+                    cv2.imwrite('./temp/video2img' + self.filename + '/' + str(i + 1) + '.jpg', image)
+                else:
+                    self.img.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
-            cv2.imwrite('./img2video/' + str(i + 1) + '.jpg', image)
+            cv2.imwrite('./temp/img2video' + self.filename + '/' + str(i + 1) + '.jpg', image)
 
             image1 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             # image2 = image.copy()
 
             # 处理RGB图像
             results = hands_mode.process(image1)
-            i = i + 1
-            # print("i = "+str(i), results.multi_hand_landmarks, test)
 
-            self.original_height, self.original_width, c = image.shape  # get image shape
-            # print(str(image_width)+" "+str(image_height))
+            i = i + 1
+            if i == 1:  # 只赋值一次
+                self.original_height, self.original_width, c = image.shape  # get image shape
 
             if results.multi_hand_landmarks == None:
                 self.keypoint_data[i - 1][0] = 0  # 默认都是过度帧
@@ -1415,9 +1660,12 @@ class LabelTool:
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-
-        if len(self.img) != self.frame_count:  # 读取视频丢帧时
-            self.frame_count = len(self.img)
+        if self.into_memory_:
+            if len(self.img) != self.frame_count:  # 读取视频丢帧时
+                self.frame_count = len(self.img)
+        else:
+            if len(os.listdir('./temp/video2img' + self.filename)) != self.frame_count:
+                self.frame_count = len(os.listdir('./temp/video2img' + self.filename))
         self.ddl = self.frame_count - int(10 * self.frame_rate) + 1
         if self.ddl < 1:
             tk.messagebox.showwarning('提示', '视频总帧数不够')
@@ -1427,9 +1675,6 @@ class LabelTool:
             temp = self.keypoint_data[i][:]
             self.keypoint_data_new.append(temp)
 
-        path, name = os.path.split(self.videoPath)
-        self.filename, suffix = os.path.splitext(name)
-        self.label2.config(text="视频编号：" + self.filename)
         self.cb3.config(text="十秒视频起始帧：" + "请在第 " + str(self.ddl) + ' 帧及之前标注')
 
         # 计算detect的值
@@ -1443,12 +1688,16 @@ class LabelTool:
         cv2.destroyAllWindows()
         cap.release()
         self.start = True
-        self.after_id = self.frame.after(600, self.focus_on_current_index)
+        if self.highlight.get() == 2:
+            self.after_id = self.frame.after(600, self.flashing)
         self.load_image()
-
+        # print("mediapipe")
 
 if __name__ == '__main__':
     root = tk.Tk()
     tool = LabelTool(root)
     # ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    root.mainloop()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        root.destroy()
