@@ -1,5 +1,5 @@
 # -*- coding : utf-8-*-
-
+import signal
 import tkinter as tk
 import tkinter.filedialog
 import tkinter.messagebox
@@ -13,6 +13,7 @@ import math
 import time
 import _thread
 import threading
+# import pygame
 import ctypes
 # from mpl_toolkits import mplot3d
 # import  matplotlib.pyplot as plt
@@ -143,25 +144,28 @@ class LabelTool:
         self.highlight = tk.IntVar()  # 关键点突出表现形式：0表示关闭、1表示划线、2表示闪烁。初始为0
         self.read_config_file()
 
-        # 绑定函数
+        # 组件绑定函数
         self.panel.bind("<Button-1>", self.on_click)
+        self.panel.bind("<Button-3>", self.on_click_r)
+        self.panel.bind("<MouseWheel>", self.on_mousewheel)
+        self.panel0.bind("<MouseWheel>", self.on_mousewheel)
+        self.frame.bind("<MouseWheel>", self.on_mousewheel)
         self.frame.bind("<KeyPress>", self.on_keyboard)
         self.frame.bind("<Button-1>", self.focus_on_frame)
         self.frame.bind("<Destroy>", self.when_frame_destroy)
-        self.frame.focus_set()
-        # entry绑定回调函数
+
+        # 变量绑定回调函数
         for i in range(42):
             self.entry_content[i].trace_variable("w", self.callback_entry)
         self.index.trace('w', self.callback_index)
         self.multi_thread.trace('w', self.callback_multi_thread)
         self.highlight.trace('w', self.callback_highlight)
         self.into_memory.trace('w', self.callback_into_memory)
-        if self.highlight.get() == 2:
+
+        if self.highlight.get() == 2:  # 闪烁
             self.after_id = self.panel.after(600, self.flashing)
-
-        # 设置布局
         self.layout()
-
+        self.frame.focus_set()
         # self.recover()
 
     def recover(self):
@@ -586,104 +590,27 @@ class LabelTool:
                 self.entry_content[2 * i].set(event.x)
                 self.entry_content[2 * i + 1].set(event.y)
 
-    def mytest(self):
-        # ax = plt.axes(projection="3d")
-        # z = [[], [], [], [], []]
-        # x = [[], [], [], [], []]
-        # y = [[], [], [], [], []]
-        # for i in range(50):
-        #     z[0].append(self.keypoint_data[i][0])
-        #     x[0].append(self.keypoint_data[i][1])
-        #     y[0].append(self.keypoint_data[i][2])
-        # for j in range(4):
-        #     for i in range(50):
-        #         z[j + 1].append(self.keypoint_data[i][0])
-        #         x[j + 1].append(self.keypoint_data[i][11 + j * 2] * self.original_width)
-        #         y[j + 1].append(self.keypoint_data[i][12 + j * 2] * self.original_height)
-        # color = ["red", "green", "yellow", "blue", "pink"]
-        # for i in range(5):
-        #     ax.plot3D(x[i], y[i], z[i], color[i])
-        # ax.set_xlabel("X Axes")
-        # ax.set_ylabel("Y Axes")
-        # ax.set_zlabel("Z Axes")
-        # plt.show()
+    def on_click_r(self, event):
+        if self.start:
+            i = self.index.get()
+            if i < 20:
+                self.index.set(i + 1)
+            else:
+                self.index.set(0)
 
-        # 计算抓握次数
-        # d = []
-        # t = []
-        # zuida = 0
-        # zuixiao = 10000
-        # for i in range(self.frame_count):
-        #     temp = math.sqrt(math.pow(self.keypoint_data[i][1] * self.original_width -
-        #                               self.keypoint_data[i][17] * self.original_width, 2) +
-        #                      math.pow(self.keypoint_data[i][2] * self.original_height -
-        #                               self.keypoint_data[i][18] * self.original_height, 2))
-        #     d.append(temp)
-        #     t.append(self.keypoint_data[i][0])
-        #     if temp > zuida:
-        #         zuida = temp
-        #     if temp < zuixiao:
-        #         zuixiao = temp
-        #     print("dis[" + str(t[i]) + "] = " + str(d[i]))
-        # mean = (zuida + zuixiao) / 2
-        # flag = 0  # 0 down, 1 up
-        # count = 0
-        # for i in range(self.frame_count - 1):  # 所有帧
-        #     if not (d[i] > mean and d[i + 1] > mean):
-        #         if not (d[i] < mean and d[i + 1] < mean):
-        #             count += 1
-        # count = int(count / 2)
-        # print("count = " + str(count))
-        # plt.ylabel("distance")
-        # plt.xlabel("frame")
-        # plt.plot(t, d)
-        # d1 = [(zuida + zuixiao) / 2, (zuida + zuixiao) / 2]
-        # t1 = [1, self.frame_count]
-        # plt.plot(t1, d1, linestyle="--")
-        # plt.show()
-
-        # 生成20帧的视频
-        # path = tk.filedialog.askopenfilename()
-        # if path != '':
-        #     cap = cv2.VideoCapture(path)
-        #     mfps = cap.get(5)
-        #     print(mfps)
-        #     mfps = self.process_frame_rate(mfps)
-        #     print(mfps)
-        #     w = int(cap.get(3))
-        #     h = int(cap.get(4))
-        #     path, name = os.path.split(path)
-        #     filename, suffix = os.path.splitext(name)
-        #     out_path = self.video_path + '/' + filename  + suffix
-        #     mfourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        #     dim = (w, h)
-        #     writer = cv2.VideoWriter(out_path, mfourcc, mfps, dim)
-        #     print(int(cap.get(7)))
-        #     i = 0
-        #     while cap.isOpened():
-        #         success, image = cap.read()
-        #         if not success:
-        #             # print(i, mfps)
-        #             print("Ignoring empty camera frame.")
-        #             break
-        #         if i < 20:
-        #             writer.write(image)
-        #         else:
-        #             print(i, mfps)
-        #             print('end')
-        #             break
-        #         i += 1
-        pass
-        # self.cal_time()
-        # print(self.parent.winfo_screenwidth(), self.parent.winfo_screenheight())
-
-
-    def cal_time(self):
-        st = time.time()
-        for i in range(self.frame_count - 1):
+    def on_mousewheel(self, event):
+        if event.delta > 0:
+            self.previous_image()
+        elif event.delta < 0:
             self.next_image()
-        et = time.time()
-        print('time: ' + str(et - st))
+
+    def mytest(self):
+        pass
+        tid = _thread.start_new_thread(self.on_gamepad, ())
+        print('tid = {}'.format(tid))
+        print(os.getpid())
+        # os.kill(tid, signal.SIGKILL)
+        # print('kill')
 
     def on_rb1(self):
         if self.start:
@@ -1010,56 +937,6 @@ class LabelTool:
             self.frame.after_cancel(self.after_id)
         # print(datetime.datetime.now(), self.after_id)
 
-    # 祭奠死去的函数
-    # 从entry中获取关键点坐标，并绘制坐标点
-    def show_coordinate(self):
-        self.panel.delete("label")
-        temp_coord = [[0.0 for j in range(2)] for i in range(21)]
-        j = 0
-        for i in range(42):
-            value = self.entry_content[i].get()
-            if value == "":
-                continue
-            if (i % 2) == 0:
-                temp_coord[j][0] = float(value)
-            else:
-                temp_coord[j][1] = float(value)
-                j = j + 1
-
-        # 绘制关键点， tags为label
-        for i in range(5):
-            self.panel.create_oval(temp_coord[i][0] - self.rad, temp_coord[i][1] - self.rad,
-                                   temp_coord[i][0] + self.rad, temp_coord[i][1] + self.rad,
-                                   fill="red", tags="label")
-            self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i + 1),
-                                   tags="label")
-        for i in range(5, 9):
-            self.panel.create_oval(temp_coord[i][0] - self.rad, temp_coord[i][1] - self.rad,
-                                   temp_coord[i][0] + self.rad, temp_coord[i][1] + self.rad,
-                                   fill="green", tags="label")
-            self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 4),
-                                   tags="label")
-        for i in range(9, 13):
-            self.panel.create_oval(temp_coord[i][0] - self.rad, temp_coord[i][1] - self.rad,
-                                   temp_coord[i][0] + self.rad, temp_coord[i][1] + self.rad,
-                                   fill="yellow", tags="label")
-            self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 8),
-                                   tags="label")
-        for i in range(13, 17):
-            self.panel.create_oval(temp_coord[i][0] - self.rad, temp_coord[i][1] - self.rad,
-                                   temp_coord[i][0] + self.rad, temp_coord[i][1] + self.rad,
-                                   fill="cyan", tags="label")
-            self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 12),
-                                   tags="label")
-        for i in range(17, 21):
-            self.panel.create_oval(temp_coord[i][0] - self.rad, temp_coord[i][1] - self.rad,
-                                   temp_coord[i][0] + self.rad, temp_coord[i][1] + self.rad,
-                                   fill="pink", tags="label")
-            self.panel.create_text(temp_coord[i][0] + self.rad + 3, temp_coord[i][1], text=str(i - 16),
-                                   tags="label")
-
-        self.panel.tag_raise("coord_line")
-
     def coordinate_line(self):
         # 网格线
         for i in range(7):
@@ -1119,17 +996,15 @@ class LabelTool:
             if not 0 < index_ <= self.frame_count:
                 tk.messagebox.showwarning('提示', '请输入范围内的帧序号')
                 return
-            if not self.process[self.current]:
-                if not self.save_coordinate():
-                    return
+            if not self.save_coordinate():
+                return
             self.current = index_ - 1
             self.load_image()
 
     def next_image(self):
         if self.start:
-            if not self.process[self.current]:
-                if not self.save_coordinate():
-                    return
+            if not self.save_coordinate():
+                return
             # print("cur = " + str(self.current))
             # print("count = " + str(self.frame_count))
             if (self.current + 1) < self.frame_count:
@@ -1322,9 +1197,8 @@ class LabelTool:
 
     def previous_image(self):
         if self.current > 0:
-            if not self.process[self.current]:
-                if not self.save_coordinate():
-                    return
+            if not self.save_coordinate():
+                return
             self.current = self.current - 1
             self.load_image()
             # print(self.current + 1, self.process[self.current])
@@ -1692,6 +1566,50 @@ class LabelTool:
             self.after_id = self.frame.after(600, self.flashing)
         self.load_image()
         # print("mediapipe")
+
+    def on_gamepad(self):
+        print(_thread.get_ident())
+        print(os.getpid())
+        self.x = tk.DoubleVar()
+        self.y = tk.DoubleVar()
+
+        pygame.init()
+        pygame.joystick.init()
+        clock = pygame.time.Clock()
+        joystick_count = pygame.joystick.get_count()
+        print("Number of joysticks: {}".format(joystick_count))
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+        axes = joystick.get_numaxes()
+        print("Number of axes: {}".format(axes))
+        buttons = joystick.get_numbuttons()
+        print("Number of buttons: {}".format(buttons))
+        hats = joystick.get_numhats()
+        print("Number of hats: {}".format(hats))
+        while True:
+            for index, event in enumerate(pygame.event.get()):
+                print(type(event), event, event.type)
+                if event.type == pygame.JOYAXISMOTION:
+                    i = event.dict['axis']
+                    value = joystick.get_axis(i)
+                    print("Axis {} value: {:>6.3f}".format(i, value))
+                elif event.type == pygame.JOYBUTTONDOWN:
+                    i = event.dict['button']
+                    value = joystick.get_button(i)
+                    print("Button {} value: {}".format(i, value))
+                elif event.type == pygame.JOYBUTTONUP:
+                    i = event.dict['button']
+                    value = joystick.get_button(i)
+                    print("Button {} value: {}".format(i, value))
+                elif event.type == pygame.JOYHATMOTION:
+                    i = event.dict['hat']
+                    value = joystick.get_hat(i)
+                    print("Hat {} value: {}".format(i, str(value)))
+                print(index)
+
+    def control_by_gamepad(self, signal, index, value):
+        pass
+
 
 if __name__ == '__main__':
     root = tk.Tk()
